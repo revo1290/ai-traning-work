@@ -14,20 +14,30 @@ const navItems = [
   { href: "/settings", label: "設定", icon: SettingsIcon },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+}
+
+export function Sidebar({ collapsed = false }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 h-screen bg-[var(--bg-secondary)] border-r border-[var(--border-color)] flex flex-col">
+    <aside
+      className={`h-screen bg-[var(--bg-secondary)] border-r border-[var(--border-color)] flex flex-col transition-all duration-300 ${
+        collapsed ? "w-16" : "w-56"
+      }`}
+    >
       {/* Logo */}
       <div className="h-14 flex items-center px-4 border-b border-[var(--border-color)]">
         <Link href="/" className="flex items-center gap-2 no-underline">
-          <div className="w-8 h-8 bg-[var(--accent-primary)] rounded flex items-center justify-center">
+          <div className="w-8 h-8 bg-[var(--accent-primary)] rounded flex items-center justify-center flex-shrink-0">
             <span className="text-[var(--bg-primary)] font-bold text-lg">S</span>
           </div>
-          <span className="text-[var(--text-primary)] font-semibold">
-            Splunk Training
-          </span>
+          {!collapsed && (
+            <span className="text-[var(--text-primary)] font-semibold whitespace-nowrap overflow-hidden">
+              Splunk Training
+            </span>
+          )}
         </Link>
       </div>
 
@@ -49,9 +59,10 @@ export function Sidebar() {
                       ? "bg-[var(--accent-primary)] text-[var(--bg-primary)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   }`}
+                  title={collapsed ? item.label : undefined}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && <span className="whitespace-nowrap overflow-hidden">{item.label}</span>}
                 </Link>
               </li>
             );
@@ -60,11 +71,13 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-[var(--border-color)]">
-        <p className="text-xs text-[var(--text-muted)]">
-          Splunk Training Tool v1.0
-        </p>
-      </div>
+      {!collapsed && (
+        <div className="p-4 border-t border-[var(--border-color)]">
+          <p className="text-xs text-[var(--text-muted)]">
+            Splunk Training Tool v1.0
+          </p>
+        </div>
+      )}
     </aside>
   );
 }
