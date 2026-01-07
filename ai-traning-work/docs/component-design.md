@@ -365,10 +365,13 @@ export function Header(): JSX.Element
 ```
 
 要素:
+- ハンバーガーメニュー（サイドバー開閉）
 - ロゴ
 - グローバル検索バー
 - 時間範囲セレクター
+- テーマ切り替えボタン（ライト/ダーク）
 - 通知アイコン
+- ヘルプアイコン
 
 ### Sidebar
 
@@ -378,11 +381,15 @@ export function Header(): JSX.Element
 
 interface SidebarProps {
   collapsed?: boolean;
-  onToggle?: () => void;
 }
 
 export function Sidebar(props: SidebarProps): JSX.Element
 ```
+
+機能:
+- 開閉可能（ハンバーガーメニューから切り替え）
+- アニメーション付きの幅変更
+- 折りたたみ時はアイコンのみ表示
 
 ナビゲーション項目:
 - ホーム
@@ -588,14 +595,14 @@ export function Panel(props: PanelProps): JSX.Element
 
 #### PanelEditor
 
-パネル編集モーダル。
+パネル作成・編集モーダル。
 
 ```tsx
 // src/components/features/dashboard/panel-editor.tsx
 "use client";
 
 interface PanelEditorProps {
-  panel?: Panel;
+  panel?: Panel;  // 編集時に渡される
   open: boolean;
   onClose: () => void;
   onSave: (panel: Partial<Panel>) => void;
@@ -603,6 +610,12 @@ interface PanelEditorProps {
 
 export function PanelEditor(props: PanelEditorProps): JSX.Element
 ```
+
+機能:
+- パネルの新規作成
+- 既存パネルの編集
+- タイトル、SPLクエリ、可視化タイプの設定
+- リアルタイムプレビュー（オプション）
 
 ---
 
@@ -724,7 +737,9 @@ export function ProblemDetail(props: ProblemDetailProps): JSX.Element
 
 ## スタイリング方針
 
-### カラーパレット（Splunk風ダークテーマ）
+### カラーパレット
+
+#### ダークテーマ（デフォルト）
 
 ```css
 :root {
@@ -732,6 +747,7 @@ export function ProblemDetail(props: ProblemDetailProps): JSX.Element
   --bg-primary: #1a1a1a;
   --bg-secondary: #2d2d2d;
   --bg-tertiary: #3d3d3d;
+  --bg-hover: #454545;
 
   /* Text */
   --text-primary: #ffffff;
@@ -746,6 +762,34 @@ export function ProblemDetail(props: ProblemDetailProps): JSX.Element
 
   /* Border */
   --border-color: #404040;
+  --border-light: #505050;
+}
+```
+
+#### ライトテーマ
+
+```css
+[data-theme="light"] {
+  /* Background */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e8e8e8;
+  --bg-hover: #e0e0e0;
+
+  /* Text */
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #737373;
+
+  /* Accent */
+  --accent-primary: #2d9a2d;
+  --accent-secondary: #c78f00;
+  --accent-danger: #c92a2a;
+  --accent-info: #3b7bb5;
+
+  /* Border */
+  --border-color: #d0d0d0;
+  --border-light: #e0e0e0;
 }
 ```
 
@@ -761,18 +805,44 @@ export function ProblemDetail(props: ProblemDetailProps): JSX.Element
 
 ### グローバル状態
 
-Zustand または React Context を使用：
+Zustand を使用（localStorage に永続化）：
 
 ```typescript
-// src/lib/stores/search-store.ts
-interface SearchStore {
-  query: string;
-  timeRange: TimeRange;
-  results: LogRecord[];
-  loading: boolean;
-  setQuery: (query: string) => void;
-  setTimeRange: (range: TimeRange) => void;
-  executeSearch: () => Promise<void>;
+// src/lib/store/index.ts
+interface AppState {
+  // UI設定
+  theme: "light" | "dark";
+  sidebarCollapsed: boolean;
+
+  // データ
+  sources: LogSource[];
+  logs: RawLog[];
+  isDataLoaded: boolean;
+
+  // 検索
+  searchHistory: SearchHistoryItem[];
+  savedSearches: SavedSearch[];
+  currentSearchResult: ExecutionResult | null;
+
+  // ダッシュボード
+  dashboards: Dashboard[];
+
+  // アラート
+  alerts: Alert[];
+  alertHistory: AlertHistoryItem[];
+
+  // フィールド
+  fieldExtractions: FieldExtraction[];
+
+  // 練習問題
+  practiceProgress: PracticeProgress[];
+
+  // アクション
+  toggleTheme: () => void;
+  setTheme: (theme: "light" | "dark") => void;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  // ... その他のアクション
 }
 ```
 

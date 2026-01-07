@@ -23,6 +23,7 @@ const COLORS = ["#65d26e", "#5bc0de", "#f0ad4e", "#d9534f", "#6366f1", "#8b5cf6"
 export default function DashboardsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPanelModal, setShowPanelModal] = useState(false);
+  const [editingPanel, setEditingPanel] = useState<Panel | null>(null);
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [newDashboardDescription, setNewDashboardDescription] = useState("");
@@ -35,6 +36,7 @@ export default function DashboardsPage() {
     createDashboard,
     deleteDashboard,
     addPanel,
+    updatePanel,
     deletePanel,
     executeSearch,
     isDataLoaded,
@@ -66,17 +68,44 @@ export default function DashboardsPage() {
 
   const handleAddPanel = () => {
     if (newPanelTitle.trim() && newPanelQuery.trim() && currentDashboard) {
-      addPanel(currentDashboard.id, {
-        title: newPanelTitle.trim(),
-        query: newPanelQuery.trim(),
-        type: newPanelType,
-        position: { x: 0, y: 0, w: 6, h: 4 },
-      });
+      if (editingPanel) {
+        // 編集モード
+        updatePanel(currentDashboard.id, editingPanel.id, {
+          title: newPanelTitle.trim(),
+          query: newPanelQuery.trim(),
+          type: newPanelType,
+        });
+      } else {
+        // 新規追加モード
+        addPanel(currentDashboard.id, {
+          title: newPanelTitle.trim(),
+          query: newPanelQuery.trim(),
+          type: newPanelType,
+          position: { x: 0, y: 0, w: 6, h: 4 },
+        });
+      }
       setShowPanelModal(false);
+      setEditingPanel(null);
       setNewPanelTitle("");
       setNewPanelQuery("");
       setNewPanelType("bar");
     }
+  };
+
+  const handleEditPanel = (panel: Panel) => {
+    setEditingPanel(panel);
+    setNewPanelTitle(panel.title);
+    setNewPanelQuery(panel.query);
+    setNewPanelType(panel.type);
+    setShowPanelModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowPanelModal(false);
+    setEditingPanel(null);
+    setNewPanelTitle("");
+    setNewPanelQuery("");
+    setNewPanelType("bar");
   };
 
   return (
@@ -184,6 +213,7 @@ export default function DashboardsPage() {
                   key={panel.id}
                   panel={panel}
                   executeSearch={executeSearch}
+                  onEdit={() => handleEditPanel(panel)}
                   onDelete={() => deletePanel(currentDashboard.id, panel.id)}
                 />
               ))}
@@ -227,10 +257,12 @@ export default function DashboardsPage() {
         </Modal>
       )}
 
-      {/* Add Panel Modal */}
+      {/* Add/Edit Panel Modal */}
       {showPanelModal && (
-        <Modal onClose={() => setShowPanelModal(false)}>
-          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">パネル追加</h2>
+        <Modal onClose={handleCloseModal}>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
+            {editingPanel ? "パネル編集" : "パネル追加"}
+          </h2>
           <div className="space-y-4">
             <div>
               <label className="block text-sm text-[var(--text-secondary)] mb-1">タイトル</label>
@@ -252,8 +284,10 @@ export default function DashboardsPage() {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-6">
-            <button type="button" onClick={() => setShowPanelModal(false)} className="px-4 py-2 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded">キャンセル</button>
-            <button type="button" onClick={handleAddPanel} disabled={!newPanelTitle.trim() || !newPanelQuery.trim()} className="px-4 py-2 bg-[var(--accent-primary)] text-[var(--bg-primary)] rounded disabled:opacity-50">追加</button>
+            <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded">キャンセル</button>
+            <button type="button" onClick={handleAddPanel} disabled={!newPanelTitle.trim() || !newPanelQuery.trim()} className="px-4 py-2 bg-[var(--accent-primary)] text-[var(--bg-primary)] rounded disabled:opacity-50">
+              {editingPanel ? "更新" : "追加"}
+            </button>
           </div>
         </Modal>
       )}
@@ -261,14 +295,17 @@ export default function DashboardsPage() {
   );
 }
 
-function PanelComponent({ panel, executeSearch, onDelete }: { panel: Panel; executeSearch: (query: string) => { success: boolean; data: Record<string, unknown>[]; error?: string }; onDelete: () => void }) {
+function PanelComponent({ panel, executeSearch, onEdit, onDelete }: { panel: Panel; executeSearch: (query: string) => { success: boolean; data: Record<string, unknown>[]; error?: string }; onEdit: () => void; onDelete: () => void }) {
   const result = useMemo(() => executeSearch(panel.query), [panel.query, executeSearch]);
 
   return (
     <div className="bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-medium text-[var(--text-primary)]">{panel.title}</h3>
-        <button type="button" onClick={onDelete} className="text-[var(--text-muted)] hover:text-[var(--accent-danger)] text-sm">✕</button>
+        <div className="flex gap-2">
+          <button type="button" onClick={onEdit} className="text-[var(--text-muted)] hover:text-[var(--accent-info)] text-sm" title="編集">✎</button>
+          <button type="button" onClick={onDelete} className="text-[var(--text-muted)] hover:text-[var(--accent-danger)] text-sm" title="削除">✕</button>
+        </div>
       </div>
       {!result.success ? (
         <div className="text-[var(--accent-danger)] text-sm p-4">エラー: {result.error}</div>

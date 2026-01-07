@@ -81,6 +81,10 @@ export interface PracticeProgress {
 }
 
 interface AppState {
+  // UI設定
+  theme: "light" | "dark";
+  sidebarCollapsed: boolean;
+
   // データ
   sources: LogSource[];
   logs: RawLog[];
@@ -105,6 +109,11 @@ interface AppState {
   practiceProgress: PracticeProgress[];
 
   // アクション
+  toggleTheme: () => void;
+  setTheme: (theme: "light" | "dark") => void;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+
   loadSampleData: () => void;
   clearData: () => void;
   executeSearch: (query: string) => ExecutionResult;
@@ -140,6 +149,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       // 初期状態
+      theme: "dark",
+      sidebarCollapsed: false,
       sources: [],
       logs: [],
       isDataLoaded: false,
@@ -151,6 +162,23 @@ export const useAppStore = create<AppState>()(
       alertHistory: [],
       fieldExtractions: [],
       practiceProgress: [],
+
+      // UI設定
+      toggleTheme: () => {
+        set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" }));
+      },
+
+      setTheme: (theme: "light" | "dark") => {
+        set({ theme });
+      },
+
+      toggleSidebar: () => {
+        set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+      },
+
+      setSidebarCollapsed: (collapsed: boolean) => {
+        set({ sidebarCollapsed: collapsed });
+      },
 
       // データ読み込み
       loadSampleData: () => {
@@ -404,6 +432,8 @@ export const useAppStore = create<AppState>()(
     {
       name: "splunk-training-store",
       partialize: (state) => ({
+        theme: state.theme,
+        sidebarCollapsed: state.sidebarCollapsed,
         sources: state.sources,
         logs: state.logs,
         isDataLoaded: state.isDataLoaded,
