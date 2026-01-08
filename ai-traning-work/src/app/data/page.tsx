@@ -7,32 +7,42 @@ const sampleDataTypes = [
   {
     id: "web",
     name: "Webサーバーログ",
-    description: "Apache/Nginx形式のアクセスログ（約2,000件）",
+    description: "Apache/Nginx形式のアクセスログ（1,000件）",
   },
   {
     id: "app",
-    name: "ECサイトログ",
-    description: "JSON形式のアプリケーションログ（約1,000件）",
+    name: "ECサイトアプリログ",
+    description: "JSON形式のアプリケーションログ（1,000件）",
   },
   {
     id: "security",
     name: "セキュリティログ",
-    description: "syslog形式のセキュリティイベント（約600件）",
+    description: "syslog形式のセキュリティイベント（1,000件）",
   },
   {
     id: "gc",
     name: "JVM GCログ",
-    description: "G1GC/ParallelGC形式のGCログ（約400件）",
+    description: "G1GC/ParallelGC形式のGCログ（1,000件）",
   },
   {
     id: "k8s",
     name: "Kubernetesログ",
-    description: "コンテナログ形式（約600件）",
+    description: "コンテナログ形式（1,000件）",
   },
   {
     id: "db",
     name: "データベースログ",
-    description: "MySQL slow query形式（約400件）",
+    description: "MySQL slow query形式（1,000件）",
+  },
+  {
+    id: "network",
+    name: "ネットワーク/Firewallログ",
+    description: "Firewall形式のネットワークログ（1,000件）",
+  },
+  {
+    id: "system",
+    name: "システムメトリクスログ",
+    description: "CPU/Memory/Diskのメトリクスログ（1,000件）",
   },
 ];
 
@@ -139,9 +149,9 @@ export default function DataPage() {
           サンプルデータ
         </h2>
         <p className="text-sm text-[var(--text-secondary)] mb-4">
-          トレーニング用のサンプルデータを読み込んで学習を始めましょう
+          トレーニング用のサンプルデータ（合計8,000件）を読み込んで学習を始めましょう
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {sampleDataTypes.map((type) => (
             <div
               key={type.id}

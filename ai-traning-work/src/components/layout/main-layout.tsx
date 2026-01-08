@@ -10,11 +10,21 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
-  const { theme, sidebarCollapsed } = useAppStore();
+  const { theme, sidebarCollapsed, isDataLoaded, loadSampleData } = useAppStore();
 
+  // テーマ設定
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  // 初回起動時にサンプルデータを自動読み込み
+  useEffect(() => {
+    if (!isDataLoaded) {
+      console.log("初回起動: サンプルデータ（8種類×1000件）を読み込み中...");
+      loadSampleData();
+      console.log("サンプルデータの読み込みが完了しました");
+    }
+  }, [isDataLoaded, loadSampleData]);
 
   return (
     <div className="flex h-screen overflow-hidden">

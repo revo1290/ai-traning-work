@@ -363,6 +363,104 @@ ${query}`;
   return logs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 }
 
+// ネットワーク/Firewallログ生成
+export function generateNetworkLogs(count: number, sourceId: string): RawLog[] {
+  const actions = ["ACCEPT", "ACCEPT", "ACCEPT", "DENY", "DROP"];
+  const protocols = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS"];
+  const ports = [22, 80, 443, 3306, 5432, 6379, 8080, 8443, 27017];
+  const interfaces = ["eth0", "eth1", "wlan0"];
+  const directions = ["IN", "OUT", "FWD"];
+
+  const logs: RawLog[] = [];
+  for (let i = 0; i < count; i++) {
+    const timestamp = randomDate();
+    const action = pick(actions);
+    const protocol = pick(protocols);
+    const srcIP = randomIP();
+    const dstIP = randomIP();
+    const srcPort = randInt(1024, 65535);
+    const dstPort = pick(ports);
+    const bytes = randInt(64, 65535);
+    const packets = randInt(1, 1000);
+    const iface = pick(interfaces);
+    const direction = pick(directions);
+
+    let level: RawLog["level"] = "info";
+    if (action === "DENY" || action === "DROP") level = "warn";
+
+    const raw = `${timestamp.toISOString()} kernel: [FIREWALL] ${action} ${direction} ${iface} SRC=${srcIP} DST=${dstIP} PROTO=${protocol} SPT=${srcPort} DPT=${dstPort} LEN=${bytes} PACKETS=${packets}`;
+
+    logs.push({
+      id: uuidv4(),
+      sourceId,
+      timestamp,
+      raw,
+      parsed: {
+        action,
+        protocol,
+        src_ip: srcIP,
+        dst_ip: dstIP,
+        src_port: srcPort,
+        dst_port: dstPort,
+        bytes,
+        packets,
+        interface: iface,
+        direction,
+        firewall: "fw-01"
+      },
+      level
+    });
+  }
+
+  return logs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+}
+
+// システムメトリクスログ生成
+export function generateSystemLogs(count: number, sourceId: string): RawLog[] {
+  const hosts = ["server-01", "server-02", "server-03", "server-04"];
+  const metrics = [
+    { name: "cpu_usage", unit: "%", min: 0, max: 100, warn: 80, error: 95 },
+    { name: "memory_usage", unit: "%", min: 30, max: 100, warn: 85, error: 95 },
+    { name: "disk_usage", unit: "%", min: 40, max: 100, warn: 80, error: 90 },
+    { name: "load_average", unit: "", min: 0, max: 8, warn: 4, error: 6 },
+    { name: "network_rx_mbps", unit: "Mbps", min: 0, max: 1000, warn: 800, error: 950 },
+    { name: "network_tx_mbps", unit: "Mbps", min: 0, max: 1000, warn: 800, error: 950 }
+  ];
+
+  const logs: RawLog[] = [];
+  for (let i = 0; i < count; i++) {
+    const timestamp = randomDate();
+    const host = pick(hosts);
+    const metric = pick(metrics);
+    const value = metric.min + Math.random() * (metric.max - metric.min);
+
+    let level: RawLog["level"] = "info";
+    if (value >= metric.error) level = "error";
+    else if (value >= metric.warn) level = "warn";
+
+    const raw = `${timestamp.toISOString()} ${host} system-monitor[${randInt(1000, 9999)}]: ${metric.name}=${value.toFixed(2)}${metric.unit}`;
+
+    logs.push({
+      id: uuidv4(),
+      sourceId,
+      timestamp,
+      raw,
+      parsed: {
+        hostname: host,
+        metric_name: metric.name,
+        value: parseFloat(value.toFixed(2)),
+        unit: metric.unit,
+        threshold_warn: metric.warn,
+        threshold_error: metric.error,
+        service: "system-monitor"
+      },
+      level
+    });
+  }
+
+  return logs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+}
+
 // 全サンプルデータ生成
 export function generateAllSampleData(): {
   sources: Array<{ id: string; name: string; type: string; format: string }>;
@@ -370,21 +468,26 @@ export function generateAllSampleData(): {
 } {
   const sources = [
     { id: "src_web", name: "Webサーバーログ", type: "web", format: "apache" },
-    { id: "src_app", name: "ECサイトログ", type: "app", format: "json" },
-    { id: "src_security", name: "セキュリティログ", type: "system", format: "syslog" },
+    { id: "src_app", name: "ECサイトアプリログ", type: "app", format: "json" },
+    { id: "src_security", name: "セキュリティログ", type: "security", format: "syslog" },
     { id: "src_gc", name: "JVM GCログ", type: "gc", format: "gc" },
     { id: "src_k8s", name: "Kubernetesログ", type: "k8s", format: "k8s" },
-    { id: "src_db", name: "データベースログ", type: "db", format: "mysql_slow" }
+    { id: "src_db", name: "データベースログ", type: "db", format: "mysql_slow" },
+    { id: "src_network", name: "ネットワーク/Firewallログ", type: "network", format: "firewall" },
+    { id: "src_system", name: "システムメトリクスログ", type: "system", format: "metrics" }
   ];
 
   const logs: RawLog[] = [
-    ...generateWebLogs(2000, "src_web"),
+    ...generateWebLogs(1000, "src_web"),
     ...generateAppLogs(1000, "src_app"),
-    ...generateSecurityLogs(600, "src_security"),
-    ...generateGCLogs(400, "src_gc"),
-    ...generateK8sLogs(600, "src_k8s"),
-    ...generateDBLogs(400, "src_db")
+    ...generateSecurityLogs(1000, "src_security"),
+    ...generateGCLogs(1000, "src_gc"),
+    ...generateK8sLogs(1000, "src_k8s"),
+    ...generateDBLogs(1000, "src_db"),
+    ...generateNetworkLogs(1000, "src_network"),
+    ...generateSystemLogs(1000, "src_system")
   ];
 
-  return { sources, logs };
+  // 全ログを時系列順にソート
+  return { sources, logs: logs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()) };
 }
