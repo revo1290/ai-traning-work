@@ -163,7 +163,10 @@ export default function SearchPage() {
           {currentSearchResult.error && (
             <div className="p-4 bg-[var(--accent-danger)]/10 text-[var(--accent-danger)]">
               <p className="font-medium">エラー</p>
-              <p className="text-sm mt-1">{currentSearchResult.error}</p>
+              <p className="text-sm mt-1">{currentSearchResult.error.message}</p>
+              {currentSearchResult.error.suggestion && (
+                <p className="text-sm mt-1 opacity-80">💡 {currentSearchResult.error.suggestion}</p>
+              )}
             </div>
           )}
 
@@ -173,7 +176,7 @@ export default function SearchPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border-color)]">
-                    {currentSearchResult.fields.slice(0, 10).map((field) => (
+                    {currentSearchResult.fields.slice(0, 10).map((field: string) => (
                       <th
                         key={field}
                         className="px-4 py-3 text-left font-medium text-[var(--text-secondary)] bg-[var(--bg-tertiary)]"
@@ -184,12 +187,12 @@ export default function SearchPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentSearchResult.data.slice(0, 100).map((row, i) => (
+                  {currentSearchResult.data.slice(0, 100).map((row: Record<string, unknown>, i: number) => (
                     <tr
                       key={i}
                       className="border-b border-[var(--border-color)] hover:bg-[var(--bg-hover)]"
                     >
-                      {currentSearchResult.fields.slice(0, 10).map((field) => (
+                      {currentSearchResult.fields.slice(0, 10).map((field: string) => (
                         <td
                           key={field}
                           className="px-4 py-3 text-[var(--text-primary)] max-w-[300px] truncate"

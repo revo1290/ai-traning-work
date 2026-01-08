@@ -2,7 +2,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { RawLog, generateAllSampleData } from "../data/sample-generator";
-import { SPLExecutor, ExecutionResult } from "../spl/executor";
+import { SPLExecutor } from "../spl/executor";
+import { ExecutionResult } from "../spl/types";
 
 export interface LogSource {
   id: string;

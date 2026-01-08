@@ -2,9 +2,9 @@
 
 ## 概要
 
-Splunk Processing Language (SPL) の疑似実装。本物のSPLと完全互換ではないが、学習目的で基本的なコマンドと構文をサポートする。
+Splunk Processing Language (SPL) の疑似実装。本番Splunk相当のコマンドと構文をサポートし、学習目的で使用可能。
 
-## 対応コマンド一覧
+## 対応コマンド一覧（30+コマンド）
 
 ### 基本コマンド
 
@@ -16,17 +16,23 @@ Splunk Processing Language (SPL) の疑似実装。本物のSPLと完全互換�
 | sort | `sort <field> [asc\|desc]` | ソート |
 | head | `head <n>` | 先頭N件 |
 | tail | `tail <n>` | 末尾N件 |
-| dedup | `dedup <field>` | 重複除去 |
+| dedup | `dedup <field> [consecutive=true] [keepempty=true]` | 重複除去 |
 | fields | `fields [+\|-] <field1>, <field2>, ...` | フィールド選択/除外 |
+| reverse | `reverse` | 結果の順序を逆転 |
+| uniq | `uniq` | 連続する重複行を除去 |
 
 ### 統計コマンド
 
 | コマンド | 構文 | 説明 |
 |---------|------|------|
 | stats | `stats <func>(<field>) [as <alias>] [by <field>]` | 統計計算 |
-| top | `top <n> <field>` | 上位N件の値 |
-| rare | `rare <n> <field>` | 下位N件の値 |
+| eventstats | `eventstats <func>(<field>) [as <alias>] [by <field>]` | 統計を各行に追加 |
+| streamstats | `streamstats <func>(<field>) [as <alias>] [by <field>] [window=n]` | ストリーミング統計 |
+| top | `top <n> <field> [by <field>]` | 上位N件の値 |
+| rare | `rare <n> <field> [by <field>]` | 下位N件の値 |
 | timechart | `timechart span=<interval> <func>(<field>) [by <field>]` | 時系列集計 |
+| chart | `chart <func>(<field>) over <field> [by <field>]` | 汎用チャート集計 |
+| addtotals | `addtotals [row=true\|false] [col=true\|false]` | 行/列の合計追加 |
 
 ### 変換コマンド
 
@@ -36,14 +42,165 @@ Splunk Processing Language (SPL) の疑似実装。本物のSPLと完全互換�
 | rex | `rex field=<field> "<regex>"` | 正規表現抽出 |
 | rename | `rename <old> as <new>` | フィールド名変更 |
 | spath | `spath [input=<field>] [output=<field>] [path=<path>]` | JSON/XMLパース |
+| fillnull | `fillnull [value=<value>] [<field1>, <field2>, ...]` | NULL値を埋める |
+| replace | `replace <pattern> with <replacement> in <field>` | 文字列置換 |
+| convert | `convert <func>(<field>) [as <alias>]` | 型変換 |
+| bin | `bin <field> [span=<value>] [bins=<n>]` | 値のビン分割 |
+
+### マルチバリューコマンド
+
+| コマンド | 構文 | 説明 |
+|---------|------|------|
+| makemv | `makemv delim="<delim>" <field>` | 文字列をマルチバリューに |
+| mvexpand | `mvexpand <field> [limit=<n>]` | マルチバリューを行に展開 |
 
 ### 結合コマンド
 
 | コマンド | 構文 | 説明 |
 |---------|------|------|
 | lookup | `lookup <table> <field> [OUTPUT <field>]` | ルックアップ結合 |
-| join | `join <field> [subsearch]` | サブサーチ結合 |
-| transaction | `transaction <field> [maxspan=<time>]` | トランザクション化 |
+| inputlookup | `inputlookup <table> [where <condition>]` | ルックアップテーブル読込 |
+| join | `join type=<type> <field> [subsearch]` | サブサーチ結合 |
+| append | `append [subsearch]` | 結果を追加 |
+
+### トランザクションコマンド
+
+| コマンド | 構文 | 説明 |
+|---------|------|------|
+| transaction | `transaction <field> [maxspan=<time>] [startswith=<expr>] [endswith=<expr>]` | トランザクション化 |
+
+### ユーティリティコマンド
+
+| コマンド | 構文 | 説明 |
+|---------|------|------|
+| makeresults | `makeresults [count=<n>]` | 空の結果を生成 |
+| regex | `regex field=<field> "<pattern>"` | 正規表現フィルタ |
+| format | `format [mvsep="<sep>"]` | 出力フォーマット |
+| return | `return [<n>] <field>` | サブサーチの結果を返す |
+
+---
+
+## 統計関数（30+関数）
+
+### 基本集計関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| count | 件数 | `stats count` |
+| sum | 合計 | `stats sum(bytes)` |
+| avg / mean | 平均 | `stats avg(response_time)` |
+| max | 最大値 | `stats max(duration)` |
+| min | 最小値 | `stats min(duration)` |
+| range | 範囲（max - min） | `stats range(price)` |
+
+### 統計関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| stdev | 標準偏差 | `stats stdev(response_time)` |
+| stdevp | 母標準偏差 | `stats stdevp(response_time)` |
+| var | 分散 | `stats var(price)` |
+| varp | 母分散 | `stats varp(price)` |
+| median | 中央値 | `stats median(price)` |
+| mode | 最頻値 | `stats mode(status)` |
+| perc / percentile | パーセンタイル | `stats perc90(response_time)` |
+
+### ユニーク・リスト関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| dc | ユニーク数 | `stats dc(user_id)` |
+| values | ユニーク値リスト | `stats values(status)` |
+| list | 全値リスト | `stats list(message)` |
+| first | 最初の値 | `stats first(timestamp)` |
+| last | 最後の値 | `stats last(timestamp)` |
+| earliest | 最も古い値 | `stats earliest(message)` |
+| latest | 最も新しい値 | `stats latest(message)` |
+
+---
+
+## Eval関数（50+関数）
+
+### 文字列関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| len | 文字列長 | `eval len=len(message)` |
+| lower | 小文字化 | `eval host=lower(host)` |
+| upper | 大文字化 | `eval method=upper(method)` |
+| trim / ltrim / rtrim | トリム | `eval s=trim(field)` |
+| substr | 部分文字列 | `eval s=substr(message, 0, 10)` |
+| replace | 置換 | `eval s=replace(field, "old", "new")` |
+| split | 分割 | `eval parts=split(path, "/")` |
+| mvjoin | 結合 | `eval s=mvjoin(values, ",")` |
+| urldecode / urlencode | URL変換 | `eval decoded=urldecode(url)` |
+
+### 数値関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| abs | 絶対値 | `eval n=abs(diff)` |
+| ceil | 切り上げ | `eval n=ceil(price)` |
+| floor | 切り下げ | `eval n=floor(price)` |
+| round | 四捨五入 | `eval n=round(price, 2)` |
+| sqrt | 平方根 | `eval n=sqrt(value)` |
+| pow | べき乗 | `eval n=pow(base, exp)` |
+| exp | 指数関数 | `eval n=exp(x)` |
+| ln / log | 対数 | `eval n=ln(value)` |
+
+### 条件関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| if | 条件分岐 | `eval status=if(code<400, "ok", "error")` |
+| case | 複数条件 | `eval level=case(code<300, "info", code<400, "warn", true(), "error")` |
+| coalesce | 最初の非NULL | `eval val=coalesce(a, b, c)` |
+| nullif | NULL化 | `eval val=nullif(a, "")` |
+| isnull / isnotnull | NULL判定 | `eval has_value=isnotnull(field)` |
+| isnum / isstr / isint | 型判定 | `eval is_number=isnum(field)` |
+| in | 値チェック | `eval is_valid=in(status, 200, 201, 204)` |
+| like / match | パターンマッチ | `eval matches=like(host, "web%")` |
+
+### 日時関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| now | 現在時刻 | `eval current=now()` |
+| time | 現在時刻（秒） | `eval t=time()` |
+| strftime | フォーマット | `eval date=strftime(_time, "%Y-%m-%d")` |
+| strptime | パース | `eval ts=strptime(date, "%Y-%m-%d")` |
+| relative_time | 相対時間 | `eval yesterday=relative_time(now(), "-1d")` |
+
+### マルチバリュー関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| mvcount | 要素数 | `eval n=mvcount(values)` |
+| mvindex | インデックス取得 | `eval first=mvindex(values, 0)` |
+| mvfilter | フィルタ | `eval filtered=mvfilter(match(values, "error"))` |
+| mvfind | 検索 | `eval idx=mvfind(values, "error")` |
+| mvappend | 追加 | `eval combined=mvappend(a, b)` |
+| mvdedup | 重複除去 | `eval unique=mvdedup(values)` |
+| mvsort | ソート | `eval sorted=mvsort(values)` |
+
+### JSON関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| json_extract | 値抽出 | `eval val=json_extract(data, "user.name")` |
+| json_keys | キー一覧 | `eval keys=json_keys(data)` |
+| json_object | オブジェクト作成 | `eval obj=json_object("a", 1, "b", 2)` |
+| json_array | 配列作成 | `eval arr=json_array(1, 2, 3)` |
+| json_valid | 検証 | `eval is_valid=json_valid(data)` |
+
+### 暗号化関数
+
+| 関数 | 説明 | 例 |
+|------|------|-----|
+| md5 | MD5ハッシュ | `eval hash=md5(password)` |
+| sha1 | SHA1ハッシュ | `eval hash=sha1(data)` |
+| sha256 | SHA256ハッシュ | `eval hash=sha256(data)` |
+| sha512 | SHA512ハッシュ | `eval hash=sha512(data)` |
 
 ---
 
@@ -80,6 +237,9 @@ search host=web*
 
 # 引用符（スペース含む文字列）
 search "connection refused"
+
+# IN演算子
+search status IN (200, 201, 204)
 ```
 
 ### 条件式（where）
@@ -129,6 +289,9 @@ stats max(response_time) as max_time, min(response_time) as min_time
 
 # 複数関数
 stats count, avg(bytes), max(bytes) by host
+
+# パーセンタイル
+stats perc90(response_time), perc95(response_time)
 ```
 
 ### eval式
@@ -154,6 +317,10 @@ eval status_str = tostring(status)
 # 日時関数
 eval hour = strftime(_time, "%H")
 eval date = strftime(_time, "%Y-%m-%d")
+
+# JSON操作
+eval user_name = json_extract(data, "user.name")
+eval request_id = json_extract(_raw, "request_id")
 ```
 
 ### rex（正規表現）
@@ -182,14 +349,16 @@ span=1h   # 1時間
 span=1d   # 1日
 ```
 
-### lookup
+### eventstats / streamstats
 
 ```
-# 基本
-lookup users user_id OUTPUT user_name
+# eventstats - 各行に統計値を追加
+eventstats avg(response_time) as avg_time by host
+| eval is_slow = if(response_time > avg_time * 2, "yes", "no")
 
-# 複数フィールド出力
-lookup geoip ip OUTPUT country, city, latitude, longitude
+# streamstats - 累積統計
+streamstats count as running_count
+streamstats avg(bytes) as running_avg window=10
 ```
 
 ### transaction
@@ -203,6 +372,32 @@ transaction session_id maxspan=30m
 
 # 開始/終了条件
 transaction session_id startswith="login" endswith="logout"
+
+# イベント数制限
+transaction session_id maxevents=100
+```
+
+### spath（JSONパース）
+
+```
+# 自動展開
+| spath
+
+# 特定パス指定
+| spath path="user.name" output=user_name
+
+# 入力フィールド指定
+| spath input=json_data path="items{}.name"
+```
+
+### join
+
+```
+# 内部結合
+| join type=inner user_id [search index=users]
+
+# 左外部結合
+| join type=left session_id [search index=sessions]
 ```
 
 ---
@@ -226,13 +421,13 @@ transaction session_id startswith="login" endswith="logout"
 │  Executor   │  クエリ実行
 └─────────────┘
     ↓
-出力(結果)
+出力(ExecutionResult)
 ```
 
 ### トークン定義
 
 ```typescript
-// src/lib/spl/lexer.ts
+// src/lib/spl/types.ts
 
 type TokenType =
   | "PIPE"           // |
@@ -245,406 +440,157 @@ type TokenType =
   | "LESS_EQ"        // <=
   | "LPAREN"         // (
   | "RPAREN"         // )
+  | "LBRACKET"       // [
+  | "RBRACKET"       // ]
   | "KEYWORD"        // search, where, stats, etc.
   | "IDENTIFIER"     // field names
   | "STRING"         // "quoted string"
   | "NUMBER"         // 123, 45.67
-  | "OPERATOR"       // AND, OR, NOT, AS, BY
-  | "FUNCTION"       // count, sum, avg, etc.
+  | "OPERATOR"       // AND, OR, NOT, AS, BY, IN, LIKE
   | "WILDCARD"       // *
+  | "DOT"            // .
   | "EOF";
 
 interface Token {
   type: TokenType;
   value: string;
   position: number;
-  line: number;
-  column: number;
 }
 ```
 
-### AST定義
+### 実行結果型
 
 ```typescript
-// src/lib/spl/ast.ts
+// src/lib/spl/types.ts
 
-interface SPLQuery {
-  commands: Command[];
+interface ExecutionResult {
+  success: boolean;
+  data: Record<string, unknown>[];
+  fields: string[];
+  count: number;
+  executionTime: number;
+  error?: ExecutionError;
+  warnings?: string[];
 }
 
-type Command =
-  | SearchCommand
-  | WhereCommand
-  | TableCommand
-  | SortCommand
-  | HeadCommand
-  | TailCommand
-  | DedupCommand
-  | FieldsCommand
-  | StatsCommand
-  | TopCommand
-  | RareCommand
-  | TimechartCommand
-  | EvalCommand
-  | RexCommand
-  | RenameCommand
-  | SpathCommand
-  | LookupCommand
-  | JoinCommand
-  | TransactionCommand;
-
-interface SearchCommand {
-  type: "search";
-  conditions: SearchCondition[];
+interface ExecutionError {
+  code: ErrorCode;
+  message: string;
+  command?: string;
+  position?: number;
+  suggestion?: string;
 }
 
-interface SearchCondition {
-  field?: string;
-  operator?: "=" | "!=" | ">" | ">=" | "<" | "<=";
-  value: string;
-  isNegated?: boolean;
-  logicalOp?: "AND" | "OR";
-}
-
-interface WhereCommand {
-  type: "where";
-  expression: Expression;
-}
-
-interface Expression {
-  type: "comparison" | "logical" | "function" | "field" | "literal";
-  // ... expression details
-}
-
-interface StatsCommand {
-  type: "stats";
-  aggregations: Aggregation[];
-  groupBy?: string[];
-}
-
-interface Aggregation {
-  function: "count" | "sum" | "avg" | "max" | "min";
-  field?: string;
-  alias?: string;
-}
-
-// ... 他のコマンド定義
-```
-
-### Lexer実装
-
-```typescript
-// src/lib/spl/lexer.ts
-
-export class SPLLexer {
-  private input: string;
-  private position: number = 0;
-  private line: number = 1;
-  private column: number = 1;
-
-  constructor(input: string) {
-    this.input = input;
-  }
-
-  tokenize(): Token[] {
-    const tokens: Token[] = [];
-
-    while (this.position < this.input.length) {
-      this.skipWhitespace();
-
-      if (this.position >= this.input.length) break;
-
-      const token = this.nextToken();
-      if (token) {
-        tokens.push(token);
-      }
-    }
-
-    tokens.push({
-      type: "EOF",
-      value: "",
-      position: this.position,
-      line: this.line,
-      column: this.column,
-    });
-
-    return tokens;
-  }
-
-  private nextToken(): Token | null {
-    const char = this.input[this.position];
-
-    // 演算子・記号
-    if (char === "|") return this.makeToken("PIPE", "|");
-    if (char === ",") return this.makeToken("COMMA", ",");
-    if (char === "(") return this.makeToken("LPAREN", "(");
-    if (char === ")") return this.makeToken("RPAREN", ")");
-
-    // 比較演算子
-    if (char === "=" || char === "!" || char === ">" || char === "<") {
-      return this.readOperator();
-    }
-
-    // 文字列
-    if (char === '"' || char === "'") {
-      return this.readString();
-    }
-
-    // 数値
-    if (this.isDigit(char)) {
-      return this.readNumber();
-    }
-
-    // 識別子・キーワード
-    if (this.isAlpha(char) || char === "_") {
-      return this.readIdentifier();
-    }
-
-    // ワイルドカード
-    if (char === "*") {
-      return this.makeToken("WILDCARD", "*");
-    }
-
-    throw new SPLSyntaxError(`Unexpected character: ${char}`, this.position);
-  }
-
-  // ... ヘルパーメソッド
-}
-```
-
-### Parser実装
-
-```typescript
-// src/lib/spl/parser.ts
-
-export class SPLParser {
-  private tokens: Token[];
-  private position: number = 0;
-
-  constructor(tokens: Token[]) {
-    this.tokens = tokens;
-  }
-
-  parse(): SPLQuery {
-    const commands: Command[] = [];
-
-    while (!this.isAtEnd()) {
-      const command = this.parseCommand();
-      commands.push(command);
-
-      // パイプがあれば次のコマンドへ
-      if (this.check("PIPE")) {
-        this.advance();
-      }
-    }
-
-    return { commands };
-  }
-
-  private parseCommand(): Command {
-    const token = this.peek();
-
-    switch (token.value.toLowerCase()) {
-      case "search":
-        return this.parseSearch();
-      case "where":
-        return this.parseWhere();
-      case "table":
-        return this.parseTable();
-      case "sort":
-        return this.parseSort();
-      case "head":
-        return this.parseHead();
-      case "tail":
-        return this.parseTail();
-      case "stats":
-        return this.parseStats();
-      case "eval":
-        return this.parseEval();
-      case "rex":
-        return this.parseRex();
-      // ... 他のコマンド
-      default:
-        // searchコマンドが省略された場合
-        return this.parseImplicitSearch();
-    }
-  }
-
-  // ... 各コマンドのパースメソッド
-}
-```
-
-### Executor実装
-
-```typescript
-// src/lib/spl/executor.ts
-
-export class SPLExecutor {
-  private db: Database;
-
-  constructor(db: Database) {
-    this.db = db;
-  }
-
-  async execute(
-    query: SPLQuery,
-    timeRange: { from: number; to: number }
-  ): Promise<ExecutionResult> {
-    let data = await this.fetchInitialData(timeRange);
-
-    for (const command of query.commands) {
-      data = await this.executeCommand(command, data);
-    }
-
-    return {
-      data,
-      fields: this.extractFields(data),
-      count: data.length,
-    };
-  }
-
-  private async executeCommand(
-    command: Command,
-    data: Record<string, unknown>[]
-  ): Promise<Record<string, unknown>[]> {
-    switch (command.type) {
-      case "search":
-        return this.executeSearch(command, data);
-      case "where":
-        return this.executeWhere(command, data);
-      case "table":
-        return this.executeTable(command, data);
-      case "sort":
-        return this.executeSort(command, data);
-      case "head":
-        return data.slice(0, command.count);
-      case "tail":
-        return data.slice(-command.count);
-      case "stats":
-        return this.executeStats(command, data);
-      case "eval":
-        return this.executeEval(command, data);
-      // ... 他のコマンド
-    }
-  }
-
-  private executeSearch(
-    command: SearchCommand,
-    data: Record<string, unknown>[]
-  ): Record<string, unknown>[] {
-    return data.filter((row) => {
-      return command.conditions.every((cond) => {
-        const value = cond.field ? row[cond.field] : JSON.stringify(row);
-        return this.matchCondition(String(value), cond);
-      });
-    });
-  }
-
-  private executeStats(
-    command: StatsCommand,
-    data: Record<string, unknown>[]
-  ): Record<string, unknown>[] {
-    if (command.groupBy && command.groupBy.length > 0) {
-      return this.executeStatsGrouped(command, data);
-    }
-
-    const result: Record<string, unknown> = {};
-    for (const agg of command.aggregations) {
-      const key = agg.alias || `${agg.function}(${agg.field || ""})`;
-      result[key] = this.calculateAggregation(agg, data);
-    }
-
-    return [result];
-  }
-
-  // ... 他の実行メソッド
-}
+type ErrorCode =
+  | "SYNTAX_ERROR"
+  | "PARSE_ERROR"
+  | "UNKNOWN_COMMAND"
+  | "UNKNOWN_FUNCTION"
+  | "INVALID_ARGUMENT"
+  | "FIELD_NOT_FOUND"
+  | "TYPE_ERROR"
+  | "REGEX_ERROR"
+  | "RUNTIME_ERROR"
+  | "TIMEOUT"
+  | "MEMORY_LIMIT";
 ```
 
 ---
 
 ## エラーハンドリング
 
-### エラー種別
+### エラークラス階層
 
 ```typescript
 // src/lib/spl/errors.ts
 
+// 基底エラークラス
 export class SPLError extends Error {
-  constructor(
-    message: string,
-    public position?: number,
-    public line?: number,
-    public column?: number
-  ) {
-    super(message);
-    this.name = "SPLError";
-  }
+  public code: ErrorCode;
+  public position?: number;
+  public command?: string;
+  public suggestion?: string;
+
+  constructor(message: string, code: ErrorCode, options?: {
+    position?: number;
+    command?: string;
+    suggestion?: string;
+  });
+
+  toExecutionError(): ExecutionError;
 }
 
-export class SPLSyntaxError extends SPLError {
-  constructor(message: string, position: number) {
-    super(`Syntax error: ${message}`, position);
-    this.name = "SPLSyntaxError";
-  }
-}
-
-export class SPLRuntimeError extends SPLError {
-  constructor(message: string) {
-    super(`Runtime error: ${message}`);
-    this.name = "SPLRuntimeError";
-  }
-}
-
-export class SPLUnknownCommandError extends SPLError {
-  constructor(command: string, position: number) {
-    super(`Unknown command: ${command}`, position);
-    this.name = "SPLUnknownCommandError";
-  }
-}
+// 派生エラークラス
+export class SPLSyntaxError extends SPLError       // 構文エラー
+export class SPLParseError extends SPLError        // パースエラー
+export class SPLRuntimeError extends SPLError      // 実行時エラー
+export class SPLUnknownCommandError extends SPLError  // 未知コマンド
+export class SPLUnknownFunctionError extends SPLError // 未知関数
+export class SPLInvalidArgumentError extends SPLError // 不正引数
+export class SPLFieldNotFoundError extends SPLError   // フィールド未発見
+export class SPLTypeError extends SPLError            // 型エラー
+export class SPLRegexError extends SPLError           // 正規表現エラー
+export class SPLTimeoutError extends SPLError         // タイムアウト
+export class SPLMemoryLimitError extends SPLError     // メモリ制限超過
 ```
 
-### バリデーション
+### サジェスト機能
+
+Levenshtein距離を使用して、誤ったコマンドや関数名に対して "Did you mean?" 形式のサジェストを提供：
 
 ```typescript
-// src/lib/spl/validator.ts
+// 例: "serch" → "Did you mean: search?"
+throw new SPLUnknownCommandError("serch", position);
+// エラーメッセージ: "Unknown command: serch"
+// サジェスト: "Did you mean: search?"
 
-export class SPLValidator {
-  validate(query: SPLQuery): ValidationResult {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationWarning[] = [];
+// 例: "cont" → "Did you mean: count?"
+throw new SPLUnknownFunctionError("cont", command);
+// エラーメッセージ: "Unknown function: cont"
+// サジェスト: "Did you mean: count?"
+```
 
-    for (const command of query.commands) {
-      this.validateCommand(command, errors, warnings);
-    }
+### リソース制限
 
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings,
-    };
-  }
+```typescript
+// Executor初期化オプション
+interface ExecutorOptions {
+  timeout?: number;      // デフォルト: 30000ms
+  memoryLimit?: number;  // デフォルト: 100000レコード
+}
 
-  private validateCommand(
-    command: Command,
-    errors: ValidationError[],
-    warnings: ValidationWarning[]
-  ) {
-    // コマンド固有のバリデーション
-    switch (command.type) {
-      case "stats":
-        if (command.aggregations.length === 0) {
-          errors.push({
-            message: "stats command requires at least one aggregation",
-            position: command.position,
-          });
-        }
-        break;
-      // ... 他のバリデーション
-    }
+// タイムアウト時
+throw new SPLTimeoutError(30000);
+// サジェスト: "Try limiting results with 'head' or adding more specific filters"
+
+// メモリ制限時
+throw new SPLMemoryLimitError(100000);
+// サジェスト: "Use 'head' or 'sample' to reduce data volume, or add filters"
+```
+
+---
+
+## セキュリティ
+
+### ReDoS対策
+
+正規表現パターンは安全にエスケープして実行：
+
+```typescript
+private safeCreateRegex(pattern: string, flags?: string): RegExp {
+  try {
+    return new RegExp(pattern, flags);
+  } catch {
+    // 不正なパターンは安全にエスケープ
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(escaped, flags);
   }
 }
 ```
+
+### 入力値サニタイズ
+
+すべてのユーザー入力はパーサーで検証し、不正な構文は明確なエラーメッセージで拒否。
 
 ---
 
@@ -666,56 +612,8 @@ export const SPL_COMMANDS: Record<string, CommandHelp> = {
       'search "connection refused"',
     ],
   },
-  where: {
-    name: "where",
-    description: "条件式でフィルタリングします",
-    syntax: "where <condition>",
-    examples: [
-      "where status >= 400",
-      "where status = 200 AND method = GET",
-    ],
-  },
-  stats: {
-    name: "stats",
-    description: "統計を計算します",
-    syntax: "stats <function>(<field>) [as <alias>] [by <field>]",
-    examples: [
-      "stats count",
-      "stats count by host",
-      "stats avg(response_time) as avg_time by status",
-    ],
-  },
   // ... 他のコマンド
 };
-```
-
-### オートコンプリート
-
-```typescript
-// src/lib/spl/autocomplete.ts
-
-export class SPLAutocomplete {
-  getSuggestions(
-    input: string,
-    cursorPosition: number,
-    context: { fields: string[]; lookups: string[] }
-  ): Suggestion[] {
-    const { prefix, type } = this.analyzeContext(input, cursorPosition);
-
-    switch (type) {
-      case "command":
-        return this.suggestCommands(prefix);
-      case "field":
-        return this.suggestFields(prefix, context.fields);
-      case "function":
-        return this.suggestFunctions(prefix);
-      case "lookup":
-        return this.suggestLookups(prefix, context.lookups);
-      default:
-        return [];
-    }
-  }
-}
 ```
 
 ---
@@ -745,19 +643,26 @@ describe("SPLLexer", () => {
   });
 });
 
-// src/lib/spl/__tests__/parser.test.ts
+// src/lib/spl/__tests__/executor.test.ts
 
-describe("SPLParser", () => {
-  it("should parse stats command", () => {
-    const tokens = new SPLLexer("stats count by host").tokenize();
-    const parser = new SPLParser(tokens);
-    const query = parser.parse();
+describe("SPLExecutor", () => {
+  it("should execute stats with groupBy", () => {
+    const executor = new SPLExecutor(sampleData);
+    const result = executor.execute("stats count by status");
 
-    expect(query.commands[0]).toMatchObject({
-      type: "stats",
-      aggregations: [{ function: "count" }],
-      groupBy: ["host"],
-    });
+    expect(result.success).toBe(true);
+    expect(result.data.length).toBeGreaterThan(0);
+    expect(result.data[0]).toHaveProperty("status");
+    expect(result.data[0]).toHaveProperty("count");
+  });
+
+  it("should return error for unknown command", () => {
+    const executor = new SPLExecutor(sampleData);
+    const result = executor.execute("unknowncommand");
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe("UNKNOWN_COMMAND");
+    expect(result.error?.suggestion).toContain("Did you mean");
   });
 });
 ```

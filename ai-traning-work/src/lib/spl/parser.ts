@@ -158,7 +158,7 @@ export class SPLParser {
           value = valueToken.value;
           this.advance();
         } else {
-          throw new SPLParseError(`Expected value after operator`, valueToken.position);
+          throw new SPLParseError(`Expected value after operator`, { position: valueToken.position });
         }
 
         return { field, operator: op === "!=" ? "!=" : op as SearchCondition["operator"], value, isNegated };
@@ -240,7 +240,7 @@ export class SPLParser {
     if (this.check("OPERATOR") && this.peek().value === "IN") {
       this.advance();
       if (!this.check("LPAREN")) {
-        throw new SPLParseError("Expected '(' after IN", this.peek().position);
+        throw new SPLParseError("Expected '(' after IN", { position: this.peek().position });
       }
       this.advance();
       const values: Expression[] = [];
@@ -251,7 +251,7 @@ export class SPLParser {
         }
       }
       if (!this.check("RPAREN")) {
-        throw new SPLParseError("Expected ')' after IN values", this.peek().position);
+        throw new SPLParseError("Expected ')' after IN values", { position: this.peek().position });
       }
       this.advance();
       return { type: "comparison", operator: "IN", left, right: { type: "literal", value: values } as unknown as Expression };
@@ -288,7 +288,7 @@ export class SPLParser {
           }
         }
         if (!this.check("RPAREN")) {
-          throw new SPLParseError("Expected ')'", this.peek().position);
+          throw new SPLParseError("Expected ')'", { position: this.peek().position });
         }
         this.advance();
         return { type: "function", name, args };
@@ -301,13 +301,13 @@ export class SPLParser {
       this.advance();
       const expr = this.parseExpression();
       if (!this.check("RPAREN")) {
-        throw new SPLParseError("Expected ')'", this.peek().position);
+        throw new SPLParseError("Expected ')'", { position: this.peek().position });
       }
       this.advance();
       return expr;
     }
 
-    throw new SPLParseError(`Unexpected token: ${token.value}`, token.position);
+    throw new SPLParseError(`Unexpected token: ${token.value}`, { position: token.position });
   }
 
   private parseTable(): TableCommand {
@@ -458,7 +458,7 @@ export class SPLParser {
               this.advance();
             }
             if (!this.check("RPAREN")) {
-              throw new SPLParseError("Expected ')'", this.peek().position);
+              throw new SPLParseError("Expected ')'", { position: this.peek().position });
             }
             this.advance();
           }
@@ -494,7 +494,7 @@ export class SPLParser {
     }
 
     if (!this.check("IDENTIFIER")) {
-      throw new SPLParseError("Expected field name for top command", this.peek().position);
+      throw new SPLParseError("Expected field name for top command", { position: this.peek().position });
     }
 
     const field = this.peek().value;
@@ -513,7 +513,7 @@ export class SPLParser {
     }
 
     if (!this.check("IDENTIFIER")) {
-      throw new SPLParseError("Expected field name for rare command", this.peek().position);
+      throw new SPLParseError("Expected field name for rare command", { position: this.peek().position });
     }
 
     const field = this.peek().value;
@@ -582,14 +582,14 @@ export class SPLParser {
     this.advance(); // consume 'eval'
 
     if (!this.check("IDENTIFIER")) {
-      throw new SPLParseError("Expected field name for eval", this.peek().position);
+      throw new SPLParseError("Expected field name for eval", { position: this.peek().position });
     }
 
     const field = this.peek().value;
     this.advance();
 
     if (!this.check("EQUALS")) {
-      throw new SPLParseError("Expected '=' in eval", this.peek().position);
+      throw new SPLParseError("Expected '=' in eval", { position: this.peek().position });
     }
     this.advance();
 
@@ -616,7 +616,7 @@ export class SPLParser {
 
     // Parse pattern
     if (!this.check("STRING")) {
-      throw new SPLParseError("Expected pattern string for rex", this.peek().position);
+      throw new SPLParseError("Expected pattern string for rex", { position: this.peek().position });
     }
 
     const pattern = this.peek().value;
@@ -656,14 +656,14 @@ export class SPLParser {
     this.advance(); // consume 'lookup'
 
     if (!this.check("IDENTIFIER")) {
-      throw new SPLParseError("Expected lookup table name", this.peek().position);
+      throw new SPLParseError("Expected lookup table name", { position: this.peek().position });
     }
 
     const table = this.peek().value;
     this.advance();
 
     if (!this.check("IDENTIFIER")) {
-      throw new SPLParseError("Expected lookup field", this.peek().position);
+      throw new SPLParseError("Expected lookup field", { position: this.peek().position });
     }
 
     const field = this.peek().value;

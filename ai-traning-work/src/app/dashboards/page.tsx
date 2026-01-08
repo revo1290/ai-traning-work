@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useAppStore, Panel } from "@/lib/store";
+import { ExecutionResult } from "@/lib/spl/types";
 import {
   LineChart,
   Line,
@@ -295,7 +296,7 @@ export default function DashboardsPage() {
   );
 }
 
-function PanelComponent({ panel, executeSearch, onEdit, onDelete }: { panel: Panel; executeSearch: (query: string) => { success: boolean; data: Record<string, unknown>[]; error?: string }; onEdit: () => void; onDelete: () => void }) {
+function PanelComponent({ panel, executeSearch, onEdit, onDelete }: { panel: Panel; executeSearch: (query: string) => ExecutionResult; onEdit: () => void; onDelete: () => void }) {
   const result = useMemo(() => executeSearch(panel.query), [panel.query, executeSearch]);
 
   return (
@@ -308,7 +309,7 @@ function PanelComponent({ panel, executeSearch, onEdit, onDelete }: { panel: Pan
         </div>
       </div>
       {!result.success ? (
-        <div className="text-[var(--accent-danger)] text-sm p-4">エラー: {result.error}</div>
+        <div className="text-[var(--accent-danger)] text-sm p-4">エラー: {result.error?.message || "Unknown error"}</div>
       ) : result.data.length === 0 ? (
         <div className="text-[var(--text-muted)] text-sm p-4 text-center">データがありません</div>
       ) : (
