@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useAppStore } from "@/lib/store";
 import Link from "next/link";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -23,16 +24,20 @@ export default function SearchPage() {
   } = useAppStore();
 
   const handleExecute = useCallback(() => {
-    if (!query.trim() || !isDataLoaded) return;
+    if (!query.trim() || !isDataLoaded || isExecuting) return;
 
     setIsExecuting(true);
-    try {
-      const result = executeSearch(query);
-      addSearchHistory(query, result.count);
-    } finally {
-      setIsExecuting(false);
-    }
-  }, [query, isDataLoaded, executeSearch, addSearchHistory]);
+
+    // Use setTimeout to allow React to render the loading state before heavy computation
+    setTimeout(() => {
+      try {
+        const result = executeSearch(query);
+        addSearchHistory(query, result.count);
+      } finally {
+        setIsExecuting(false);
+      }
+    }, 50);
+  }, [query, isDataLoaded, isExecuting, executeSearch, addSearchHistory]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -55,6 +60,9 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-4">
+      {/* Loading Overlay */}
+      <LoadingOverlay isLoading={isExecuting} message="検索を実行中..." />
+
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">検索</h1>
         <p className="text-[var(--text-secondary)] mt-1">
