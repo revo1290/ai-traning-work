@@ -116,6 +116,7 @@ interface AppState {
   setSidebarCollapsed: (collapsed: boolean) => void;
 
   loadSampleData: () => void;
+  loadCustomData: (name: string, data: Record<string, unknown>[], format: string) => void;
   clearData: () => void;
   executeSearch: (query: string) => ExecutionResult;
   addSearchHistory: (query: string, resultCount: number) => void;
@@ -189,6 +190,40 @@ export const useAppStore = create<AppState>()(
           logs,
           isDataLoaded: true,
         });
+      },
+
+      loadCustomData: (name: string, data: Record<string, unknown>[], format: string) => {
+        const sourceId = generateId();
+        const newSource: LogSource = {
+          id: sourceId,
+          name,
+          type: "custom",
+          format,
+          createdAt: new Date(),
+        };
+
+        const newLogs: RawLog[] = data.map((item, index) => {
+          const levelStr = item.level as string | undefined;
+          const validLevels = ["info", "warn", "error", "debug"] as const;
+          const level = validLevels.includes(levelStr as typeof validLevels[number])
+            ? (levelStr as "info" | "warn" | "error" | "debug")
+            : "info";
+
+          return {
+            id: `${sourceId}-${index}`,
+            sourceId,
+            timestamp: item._time instanceof Date ? item._time : new Date(item._time as string || Date.now()),
+            raw: JSON.stringify(item),
+            level,
+            parsed: item,
+          };
+        });
+
+        set((state) => ({
+          sources: [...state.sources, newSource],
+          logs: [...state.logs, ...newLogs],
+          isDataLoaded: true,
+        }));
       },
 
       clearData: () => {

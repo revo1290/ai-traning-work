@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useAppStore } from "@/lib/store";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 const sampleDataTypes = [
   {
@@ -39,8 +40,92 @@ const sampleDataTypes = [
 export default function DataPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("読み込み中...");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { sources, logs, isDataLoaded, loadSampleData, clearData } = useAppStore();
+  const { sources, logs, isDataLoaded, loadSampleData, loadCustomData, clearData } = useAppStore();
+
+  const parseCSV = useCallback((text: string): Record<string, unknown>[] => {
+    const lines = text.trim().split("\n");
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    const data: Record<string, unknown>[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+      const row: Record<string, unknown> = {};
+      headers.forEach((header, index) => {
+        let value: string | number = values[index]?.replace(/^"|"$/g, "") || "";
+        // Try to parse as number
+        const num = Number(value);
+        if (!isNaN(num) && value !== "") {
+          row[header] = num;
+        } else {
+          row[header] = value;
+        }
+      });
+      if (Object.keys(row).length > 0) {
+        data.push(row);
+      }
+    }
+    return data;
+  }, []);
+
+  const parseJSON = useCallback((text: string): Record<string, unknown>[] => {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    // If it's a single object, wrap in array
+    return [parsed];
+  }, []);
+
+  const parseLogLines = useCallback((text: string): Record<string, unknown>[] => {
+    const lines = text.trim().split("\n").filter(line => line.trim());
+    return lines.map((line, index) => ({
+      _raw: line,
+      _time: new Date().toISOString(),
+      lineNumber: index + 1,
+    }));
+  }, []);
+
+  const processFile = useCallback(async (file: File) => {
+    setIsLoading(true);
+    setUploadError(null);
+    setLoadingMessage(`${file.name} を読み込み中...`);
+
+    try {
+      const text = await file.text();
+      let data: Record<string, unknown>[] = [];
+      let format = "text";
+
+      if (file.name.endsWith(".json")) {
+        data = parseJSON(text);
+        format = "JSON";
+      } else if (file.name.endsWith(".csv")) {
+        data = parseCSV(text);
+        format = "CSV";
+      } else {
+        data = parseLogLines(text);
+        format = "Log";
+      }
+
+      if (data.length === 0) {
+        throw new Error("ファイルにデータがありません");
+      }
+
+      // Use setTimeout to allow UI to update
+      setTimeout(() => {
+        loadCustomData(file.name, data, format);
+        setIsLoading(false);
+      }, 100);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "ファイルの読み込みに失敗しました");
+      setIsLoading(false);
+    }
+  }, [parseJSON, parseCSV, parseLogLines, loadCustomData]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -51,14 +136,30 @@ export default function DataPage() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    // TODO: Handle file drop
-  };
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      processFile(files[0]);
+    }
+  }, [processFile]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      processFile(files[0]);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [processFile]);
 
   const handleLoadSampleData = async () => {
     setIsLoading(true);
+    setLoadingMessage("サンプルデータを読み込み中...");
     // 少し遅延を入れてUIの反応性を示す
     await new Promise((resolve) => setTimeout(resolve, 500));
     loadSampleData();
@@ -73,6 +174,9 @@ export default function DataPage() {
 
   return (
     <div className="space-y-6">
+      {/* Loading Overlay */}
+      <LoadingOverlay isLoading={isLoading} message={loadingMessage} />
+
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
           データ取り込み
@@ -81,6 +185,20 @@ export default function DataPage() {
           ログファイルをアップロードするか、サンプルデータを読み込みます
         </p>
       </div>
+
+      {/* Error Display */}
+      {uploadError && (
+        <div className="bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)] rounded-lg p-4 flex items-center justify-between">
+          <p className="text-[var(--accent-danger)]">{uploadError}</p>
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            className="text-[var(--accent-danger)] hover:opacity-70"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Status Banner */}
       {isDataLoaded && (
@@ -125,7 +243,13 @@ export default function DataPage() {
           <p className="text-sm text-[var(--text-muted)] mb-4">または</p>
           <label className="px-4 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] rounded cursor-pointer hover:bg-[var(--bg-hover)] transition-colors">
             ファイルを選択
-            <input type="file" className="hidden" accept=".log,.txt,.json,.csv" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".log,.txt,.json,.csv"
+              onChange={handleFileSelect}
+            />
           </label>
           <p className="text-xs text-[var(--text-muted)] mt-4">
             対応形式: .log, .txt, .json, .csv

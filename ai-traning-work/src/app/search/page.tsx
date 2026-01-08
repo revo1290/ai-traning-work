@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import Link from "next/link";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -12,6 +14,8 @@ export default function SearchPage() {
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
   const [activeTab, setActiveTab] = useState<"events" | "stats" | "visualization">("events");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const {
     isDataLoaded,
@@ -27,6 +31,7 @@ export default function SearchPage() {
     if (!query.trim() || !isDataLoaded || isExecuting) return;
 
     setIsExecuting(true);
+    setCurrentPage(1); // Reset to first page on new search
 
     // Use setTimeout to allow React to render the loading state before heavy computation
     setTimeout(() => {
@@ -38,6 +43,48 @@ export default function SearchPage() {
       }
     }, 50);
   }, [query, isDataLoaded, isExecuting, executeSearch, addSearchHistory]);
+
+  // Pagination calculations
+  const paginatedData = useMemo(() => {
+    if (!currentSearchResult?.data) return [];
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return currentSearchResult.data.slice(start, end);
+  }, [currentSearchResult?.data, currentPage, pageSize]);
+
+  const totalPages = useMemo(() => {
+    if (!currentSearchResult?.data) return 0;
+    return Math.ceil(currentSearchResult.data.length / pageSize);
+  }, [currentSearchResult?.data, pageSize]);
+
+  // Export functions
+  const exportToCSV = useCallback(() => {
+    if (!currentSearchResult?.data || currentSearchResult.data.length === 0) return;
+
+    const fields = currentSearchResult.fields;
+    const csvHeader = fields.join(",");
+    const csvRows = currentSearchResult.data.map(row =>
+      fields.map(field => {
+        const value = row[field];
+        const str = value === null || value === undefined ? "" : String(value);
+        // Escape quotes and wrap in quotes if contains comma or newline
+        if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(",")
+    );
+
+    const csv = [csvHeader, ...csvRows].join("\n");
+    downloadFile(csv, "search-results.csv", "text/csv");
+  }, [currentSearchResult]);
+
+  const exportToJSON = useCallback(() => {
+    if (!currentSearchResult?.data || currentSearchResult.data.length === 0) return;
+
+    const json = JSON.stringify(currentSearchResult.data, null, 2);
+    downloadFile(json, "search-results.json", "application/json");
+  }, [currentSearchResult]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -180,41 +227,120 @@ export default function SearchPage() {
 
           {/* Results Table */}
           {currentSearchResult.success && currentSearchResult.data.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border-color)]">
-                    {currentSearchResult.fields.slice(0, 10).map((field: string) => (
-                      <th
-                        key={field}
-                        className="px-4 py-3 text-left font-medium text-[var(--text-secondary)] bg-[var(--bg-tertiary)]"
-                      >
-                        {field}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentSearchResult.data.slice(0, 100).map((row: Record<string, unknown>, i: number) => (
-                    <tr
-                      key={i}
-                      className="border-b border-[var(--border-color)] hover:bg-[var(--bg-hover)]"
+            <div>
+              {/* Table Controls */}
+              <div className="flex items-center justify-between p-3 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]">
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                    表示件数:
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] text-sm"
                     >
+                      {PAGE_SIZE_OPTIONS.map(size => (
+                        <option key={size} value={size}>{size}件</option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="text-sm text-[var(--text-muted)]">
+                    {((currentPage - 1) * pageSize + 1).toLocaleString()} - {Math.min(currentPage * pageSize, currentSearchResult.data.length).toLocaleString()} / {currentSearchResult.data.length.toLocaleString()} 件
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={exportToCSV}
+                    className="px-3 py-1 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
+                  >
+                    CSV出力
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportToJSON}
+                    className="px-3 py-1 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
+                  >
+                    JSON出力
+                  </button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-color)]">
                       {currentSearchResult.fields.slice(0, 10).map((field: string) => (
-                        <td
+                        <th
                           key={field}
-                          className="px-4 py-3 text-[var(--text-primary)] max-w-[300px] truncate"
+                          className="px-4 py-3 text-left font-medium text-[var(--text-secondary)] bg-[var(--bg-tertiary)]"
                         >
-                          {formatValue(row[field])}
-                        </td>
+                          {field}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {currentSearchResult.data.length > 100 && (
-                <div className="p-4 text-center text-sm text-[var(--text-muted)]">
-                  表示: 100 / {currentSearchResult.data.length} 件
+                  </thead>
+                  <tbody>
+                    {paginatedData.map((row: Record<string, unknown>, i: number) => (
+                      <tr
+                        key={i}
+                        className="border-b border-[var(--border-color)] hover:bg-[var(--bg-hover)]"
+                      >
+                        {currentSearchResult.fields.slice(0, 10).map((field: string) => (
+                          <td
+                            key={field}
+                            className="px-4 py-3 text-[var(--text-primary)] max-w-[300px] truncate"
+                          >
+                            {formatValue(row[field])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 p-4 border-t border-[var(--border-color)]">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
+                  >
+                    最初
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
+                  >
+                    前へ
+                  </button>
+                  <span className="px-4 py-1 text-sm text-[var(--text-primary)]">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
+                  >
+                    次へ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-sm bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
+                  >
+                    最後
+                  </button>
                 </div>
               )}
             </div>
@@ -394,4 +520,16 @@ function formatValue(value: unknown): string {
   if (value instanceof Date) return value.toLocaleString("ja-JP");
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
