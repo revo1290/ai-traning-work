@@ -84,6 +84,7 @@ interface AppState {
   // UI設定
   theme: "light" | "dark";
   sidebarCollapsed: boolean;
+  resultLimit: number;
 
   // データ
   sources: LogSource[];
@@ -113,6 +114,7 @@ interface AppState {
   setTheme: (theme: "light" | "dark") => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setResultLimit: (limit: number) => void;
 
   loadSampleData: () => void;
   clearData: () => void;
@@ -151,6 +153,7 @@ export const useAppStore = create<AppState>()(
       // 初期状態
       theme: "dark",
       sidebarCollapsed: false,
+      resultLimit: 100,
       sources: [],
       logs: [],
       isDataLoaded: false,
@@ -178,6 +181,10 @@ export const useAppStore = create<AppState>()(
 
       setSidebarCollapsed: (collapsed: boolean) => {
         set({ sidebarCollapsed: collapsed });
+      },
+
+      setResultLimit: (limit: number) => {
+        set({ resultLimit: limit });
       },
 
       // データ読み込み
@@ -434,6 +441,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,
+        resultLimit: state.resultLimit,
         sources: state.sources,
         logs: state.logs,
         isDataLoaded: state.isDataLoaded,

@@ -15,6 +15,7 @@
   --accent-secondary: #f2b705;
   --accent-danger: #d94f4f;
   --accent-info: #5b9bd5;
+  --accent-warning: #f2b705;
 
   --border-color: #404040;
   --border-light: #505050;
@@ -38,6 +39,7 @@
   --accent-secondary: #c78f00;
   --accent-danger: #c92a2a;
   --accent-info: #3b7bb5;
+  --accent-warning: #c78f00;
 
   --border-color: #d0d0d0;
   --border-light: #e0e0e0;

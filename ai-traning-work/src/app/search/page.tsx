@@ -14,6 +14,7 @@ export default function SearchPage() {
 
   const {
     isDataLoaded,
+    resultLimit,
     executeSearch,
     currentSearchResult,
     addSearchHistory,
@@ -184,7 +185,7 @@ export default function SearchPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentSearchResult.data.slice(0, 100).map((row, i) => (
+                  {currentSearchResult.data.slice(0, resultLimit).map((row, i) => (
                     <tr
                       key={i}
                       className="border-b border-[var(--border-color)] hover:bg-[var(--bg-hover)]"
@@ -201,9 +202,9 @@ export default function SearchPage() {
                   ))}
                 </tbody>
               </table>
-              {currentSearchResult.data.length > 100 && (
+              {currentSearchResult.data.length > resultLimit && (
                 <div className="p-4 text-center text-sm text-[var(--text-muted)]">
-                  表示: 100 / {currentSearchResult.data.length} 件
+                  表示: {resultLimit} / {currentSearchResult.data.length} 件
                 </div>
               )}
             </div>

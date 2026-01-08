@@ -5,9 +5,12 @@ import { useAppStore } from "@/lib/store";
 
 export default function SettingsPage() {
   const [retentionDays, setRetentionDays] = useState(30);
-  const [resultLimit, setResultLimit] = useState(100);
 
   const {
+    theme,
+    setTheme,
+    resultLimit,
+    setResultLimit,
     logs,
     sources,
     dashboards,
@@ -95,11 +98,13 @@ export default function SettingsPage() {
             <label className="block text-sm text-[var(--text-secondary)] mb-2">
               テーマ
             </label>
-            <select className="px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none">
+            <select
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as "light" | "dark")}
+              className="px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none"
+            >
               <option value="dark">ダーク（Splunk風）</option>
-              <option value="light" disabled>
-                ライト（準備中）
-              </option>
+              <option value="light">ライト</option>
             </select>
           </div>
           <div>
