@@ -93,6 +93,41 @@ export class SPLParser {
           return this.parseRename();
         case "lookup":
           return this.parseLookup();
+        case "eventstats":
+          return this.parseEventstats();
+        case "streamstats":
+          return this.parseStreamstats();
+        case "chart":
+          return this.parseChart();
+        case "spath":
+          return this.parseSpath();
+        case "join":
+          return this.parseJoin();
+        case "transaction":
+          return this.parseTransaction();
+        case "fillnull":
+          return this.parseFillnull();
+        case "replace":
+          return this.parseReplace();
+        case "regex":
+          return this.parseRegex();
+        case "bin":
+        case "bucket":
+          return this.parseBin();
+        case "makemv":
+          return this.parseMakemv();
+        case "mvexpand":
+          return this.parseMvexpand();
+        case "addtotals":
+          return this.parseAddtotals();
+        case "reverse":
+          return this.parseReverse();
+        case "uniq":
+          return this.parseUniq();
+        case "makeresults":
+          return this.parseMakeresults();
+        case "convert":
+          return this.parseConvert();
         default:
           throw new SPLUnknownCommandError(token.value, token.position);
       }
@@ -218,21 +253,21 @@ export class SPLParser {
   }
 
   private parseComparison(): Expression {
-    const left = this.parsePrimary();
+    const left = this.parseAddition();
 
     if (this.check("EQUALS") || this.check("NOT_EQUALS") ||
         this.check("GREATER") || this.check("GREATER_EQ") ||
         this.check("LESS") || this.check("LESS_EQ")) {
       const operator = this.peek().value;
       this.advance();
-      const right = this.parsePrimary();
+      const right = this.parseAddition();
       return { type: "comparison", operator, left, right };
     }
 
     // LIKE operator
     if (this.check("OPERATOR") && this.peek().value === "LIKE") {
       this.advance();
-      const right = this.parsePrimary();
+      const right = this.parseAddition();
       return { type: "comparison", operator: "LIKE", left, right };
     }
 
@@ -255,6 +290,32 @@ export class SPLParser {
       }
       this.advance();
       return { type: "comparison", operator: "IN", left, right: { type: "literal", value: values } as unknown as Expression };
+    }
+
+    return left;
+  }
+
+  private parseAddition(): Expression {
+    let left = this.parseMultiplication();
+
+    while (this.check("PLUS") || this.check("MINUS")) {
+      const operator = this.peek().value;
+      this.advance();
+      const right = this.parseMultiplication();
+      left = { type: "arithmetic", operator, left, right };
+    }
+
+    return left;
+  }
+
+  private parseMultiplication(): Expression {
+    let left = this.parsePrimary();
+
+    while (this.check("ASTERISK") || this.check("SLASH") || this.check("PERCENT")) {
+      const operator = this.peek().value === "*" ? "*" : this.peek().value;
+      this.advance();
+      const right = this.parsePrimary();
+      left = { type: "arithmetic", operator, left, right };
     }
 
     return left;
@@ -315,7 +376,7 @@ export class SPLParser {
     const fields: string[] = [];
 
     while (!this.isAtEnd() && !this.check("PIPE")) {
-      if (this.check("IDENTIFIER") || this.check("WILDCARD")) {
+      if (this.check("IDENTIFIER") || this.check("ASTERISK")) {
         fields.push(this.peek().value);
         this.advance();
       }
@@ -412,7 +473,7 @@ export class SPLParser {
     }
 
     while (!this.isAtEnd() && !this.check("PIPE")) {
-      if (this.check("IDENTIFIER") || this.check("WILDCARD")) {
+      if (this.check("IDENTIFIER") || this.check("ASTERISK")) {
         fields.push(this.peek().value);
         this.advance();
       }
@@ -453,7 +514,7 @@ export class SPLParser {
           // Check for (field)
           if (this.check("LPAREN")) {
             this.advance();
-            if (this.check("IDENTIFIER") || this.check("WILDCARD")) {
+            if (this.check("IDENTIFIER") || this.check("ASTERISK")) {
               agg.field = this.peek().value;
               this.advance();
             }
@@ -684,6 +745,693 @@ export class SPLParser {
     }
 
     return { type: "lookup", table, field, outputFields };
+  }
+
+  private parseEventstats(): Command {
+    this.advance(); // consume 'eventstats'
+    const aggregations: Aggregation[] = [];
+    const groupBy: string[] = [];
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("OPERATOR") && this.peek().value === "BY") {
+        this.advance();
+        while (!this.isAtEnd() && !this.check("PIPE") && this.check("IDENTIFIER")) {
+          groupBy.push(this.peek().value);
+          this.advance();
+          if (this.check("COMMA")) this.advance();
+        }
+        break;
+      }
+
+      if (this.check("IDENTIFIER")) {
+        const funcName = this.peek().value.toLowerCase();
+        if (STATS_FUNCTIONS.includes(funcName as StatsFunction)) {
+          this.advance();
+          const agg: Aggregation = { function: funcName as StatsFunction };
+          if (this.check("LPAREN")) {
+            this.advance();
+            if (this.check("IDENTIFIER") || this.check("ASTERISK")) {
+              agg.field = this.peek().value;
+              this.advance();
+            }
+            if (this.check("RPAREN")) this.advance();
+          }
+          if (this.check("OPERATOR") && this.peek().value === "AS") {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              agg.alias = this.peek().value;
+              this.advance();
+            }
+          }
+          aggregations.push(agg);
+        }
+      }
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "eventstats", aggregations, groupBy };
+  }
+
+  private parseStreamstats(): Command {
+    this.advance(); // consume 'streamstats'
+    const aggregations: Aggregation[] = [];
+    const groupBy: string[] = [];
+    let window: number | undefined;
+    let current: boolean | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      // Parse window=N
+      if (this.check("IDENTIFIER") && this.peek().value === "window") {
+        this.advance();
+        if (this.check("EQUALS")) {
+          this.advance();
+          if (this.check("NUMBER")) {
+            window = parseInt(this.peek().value);
+            this.advance();
+          }
+        }
+        continue;
+      }
+
+      // Parse current=true/false
+      if (this.check("IDENTIFIER") && this.peek().value === "current") {
+        this.advance();
+        if (this.check("EQUALS")) {
+          this.advance();
+          if (this.check("IDENTIFIER")) {
+            current = this.peek().value === "true";
+            this.advance();
+          }
+        }
+        continue;
+      }
+
+      if (this.check("OPERATOR") && this.peek().value === "BY") {
+        this.advance();
+        while (!this.isAtEnd() && !this.check("PIPE") && this.check("IDENTIFIER")) {
+          groupBy.push(this.peek().value);
+          this.advance();
+          if (this.check("COMMA")) this.advance();
+        }
+        break;
+      }
+
+      if (this.check("IDENTIFIER")) {
+        const funcName = this.peek().value.toLowerCase();
+        if (STATS_FUNCTIONS.includes(funcName as StatsFunction)) {
+          this.advance();
+          const agg: Aggregation = { function: funcName as StatsFunction };
+          if (this.check("LPAREN")) {
+            this.advance();
+            if (this.check("IDENTIFIER") || this.check("ASTERISK")) {
+              agg.field = this.peek().value;
+              this.advance();
+            }
+            if (this.check("RPAREN")) this.advance();
+          }
+          if (this.check("OPERATOR") && this.peek().value === "AS") {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              agg.alias = this.peek().value;
+              this.advance();
+            }
+          }
+          aggregations.push(agg);
+        }
+      }
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "streamstats", aggregations, groupBy, window, current };
+  }
+
+  private parseChart(): Command {
+    this.advance(); // consume 'chart'
+    const aggregations: Aggregation[] = [];
+    let over: string = "";
+    let by: string | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      // Parse OVER
+      if (this.check("OPERATOR") && this.peek().value === "OVER") {
+        this.advance();
+        if (this.check("IDENTIFIER")) {
+          over = this.peek().value;
+          this.advance();
+        }
+        continue;
+      }
+
+      // Parse BY
+      if (this.check("OPERATOR") && this.peek().value === "BY") {
+        this.advance();
+        if (this.check("IDENTIFIER")) {
+          by = this.peek().value;
+          this.advance();
+        }
+        continue;
+      }
+
+      if (this.check("IDENTIFIER")) {
+        const funcName = this.peek().value.toLowerCase();
+        if (STATS_FUNCTIONS.includes(funcName as StatsFunction)) {
+          this.advance();
+          const agg: Aggregation = { function: funcName as StatsFunction };
+          if (this.check("LPAREN")) {
+            this.advance();
+            if (this.check("IDENTIFIER") || this.check("ASTERISK")) {
+              agg.field = this.peek().value;
+              this.advance();
+            }
+            if (this.check("RPAREN")) this.advance();
+          }
+          aggregations.push(agg);
+        }
+      }
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "chart", aggregations, over, by };
+  }
+
+  private parseSpath(): Command {
+    this.advance(); // consume 'spath'
+    let input: string | undefined;
+    let output: string | undefined;
+    let path: string | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+        if (key === "input" || key === "output" || key === "path") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER") || this.check("STRING")) {
+              const value = this.peek().value;
+              this.advance();
+              if (key === "input") input = value;
+              else if (key === "output") output = value;
+              else if (key === "path") path = value;
+            }
+          }
+        } else {
+          // path without keyword
+          path = this.peek().value;
+          this.advance();
+        }
+      } else if (this.check("STRING")) {
+        path = this.peek().value;
+        this.advance();
+      } else {
+        break;
+      }
+    }
+
+    return { type: "spath", input, output, path };
+  }
+
+  private parseJoin(): Command {
+    this.advance(); // consume 'join'
+    let joinType: "inner" | "left" | "outer" = "inner";
+    const fields: string[] = [];
+    let subsearch = "";
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      // Parse type=inner/left/outer
+      if (this.check("IDENTIFIER") && this.peek().value === "type") {
+        this.advance();
+        if (this.check("EQUALS")) {
+          this.advance();
+          if (this.check("IDENTIFIER")) {
+            const typeVal = this.peek().value.toLowerCase();
+            if (typeVal === "inner" || typeVal === "left" || typeVal === "outer") {
+              joinType = typeVal;
+            }
+            this.advance();
+          }
+        }
+        continue;
+      }
+
+      // Parse field names
+      if (this.check("IDENTIFIER")) {
+        fields.push(this.peek().value);
+        this.advance();
+      }
+
+      // Parse subsearch in brackets
+      if (this.check("LBRACKET")) {
+        this.advance();
+        let depth = 1;
+        while (!this.isAtEnd() && depth > 0) {
+          if (this.check("LBRACKET")) depth++;
+          if (this.check("RBRACKET")) depth--;
+          if (depth > 0) {
+            subsearch += this.peek().value + " ";
+            this.advance();
+          }
+        }
+        if (this.check("RBRACKET")) this.advance();
+        break;
+      }
+
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "join", joinType, fields, subsearch: subsearch.trim() };
+  }
+
+  private parseTransaction(): Command {
+    this.advance(); // consume 'transaction'
+    const fields: string[] = [];
+    let maxspan: string | undefined;
+    let maxpause: string | undefined;
+    let startswith: string | undefined;
+    let endswith: string | undefined;
+    let maxevents: number | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+
+        if (key === "maxspan" || key === "maxpause") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER") || this.check("NUMBER")) {
+              const value = this.peek().value;
+              this.advance();
+              if (key === "maxspan") maxspan = value;
+              else maxpause = value;
+            }
+          }
+          continue;
+        }
+
+        if (key === "startswith" || key === "endswith") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("STRING") || this.check("IDENTIFIER")) {
+              const value = this.peek().value;
+              this.advance();
+              if (key === "startswith") startswith = value;
+              else endswith = value;
+            }
+          }
+          continue;
+        }
+
+        if (key === "maxevents") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("NUMBER")) {
+              maxevents = parseInt(this.peek().value);
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        // Field names
+        fields.push(this.peek().value);
+        this.advance();
+      }
+
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "transaction", fields, maxspan, maxpause, startswith, endswith, maxevents };
+  }
+
+  private parseFillnull(): Command {
+    this.advance(); // consume 'fillnull'
+    let value: string | number | undefined;
+    const fields: string[] = [];
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER") && this.peek().value === "value") {
+        this.advance();
+        if (this.check("EQUALS")) {
+          this.advance();
+          if (this.check("STRING") || this.check("NUMBER") || this.check("IDENTIFIER")) {
+            value = this.check("NUMBER") ? parseFloat(this.peek().value) : this.peek().value;
+            this.advance();
+          }
+        }
+        continue;
+      }
+
+      if (this.check("IDENTIFIER")) {
+        fields.push(this.peek().value);
+        this.advance();
+      }
+
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "fillnull", value, fields: fields.length > 0 ? fields : undefined };
+  }
+
+  private parseReplace(): Command {
+    this.advance(); // consume 'replace'
+    const replacements: Array<{ pattern: string; replacement: string }> = [];
+    const fields: string[] = [];
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      // Parse pattern WITH replacement
+      if (this.check("STRING") || this.check("IDENTIFIER")) {
+        const pattern = this.peek().value;
+        this.advance();
+
+        if (this.check("IDENTIFIER") && this.peek().value.toUpperCase() === "WITH") {
+          this.advance();
+          if (this.check("STRING") || this.check("IDENTIFIER")) {
+            const replacement = this.peek().value;
+            this.advance();
+            replacements.push({ pattern, replacement });
+          }
+        }
+      }
+
+      // Parse IN fields
+      if (this.check("OPERATOR") && this.peek().value === "IN") {
+        this.advance();
+        while (!this.isAtEnd() && !this.check("PIPE") && this.check("IDENTIFIER")) {
+          fields.push(this.peek().value);
+          this.advance();
+          if (this.check("COMMA")) this.advance();
+        }
+      }
+
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "replace", replacements, fields: fields.length > 0 ? fields : undefined };
+  }
+
+  private parseRegex(): Command {
+    this.advance(); // consume 'regex'
+    let field: string | undefined;
+    let pattern = "";
+    let isNegated = false;
+
+    // Parse field=xxx
+    if (this.check("IDENTIFIER") && this.peek().value === "field") {
+      this.advance();
+      if (this.check("EQUALS")) {
+        this.advance();
+        if (this.check("IDENTIFIER")) {
+          field = this.peek().value;
+          this.advance();
+        }
+      }
+    }
+
+    // Parse negation
+    if (this.check("NOT_EQUALS")) {
+      isNegated = true;
+      this.advance();
+    }
+
+    // Parse pattern
+    if (this.check("STRING")) {
+      pattern = this.peek().value;
+      this.advance();
+    }
+
+    return { type: "regex", field, pattern, isNegated };
+  }
+
+  private parseBin(): Command {
+    this.advance(); // consume 'bin' or 'bucket'
+    let field = "";
+    let span: string | number | undefined;
+    let bins: number | undefined;
+    let alias: string | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+
+        if (key === "span") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER") || this.check("NUMBER")) {
+              span = this.peek().value;
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        if (key === "bins") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("NUMBER")) {
+              bins = parseInt(this.peek().value);
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        // Field name or alias
+        if (!field) {
+          field = this.peek().value;
+          this.advance();
+
+          // Check for AS alias
+          if (this.check("OPERATOR") && this.peek().value === "AS") {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              alias = this.peek().value;
+              this.advance();
+            }
+          }
+          continue;
+        }
+      }
+
+      if (this.check("COMMA")) this.advance();
+      else break;
+    }
+
+    return { type: "bin", field, span, bins, alias };
+  }
+
+  private parseMakemv(): Command {
+    this.advance(); // consume 'makemv'
+    let field = "";
+    let delim: string | undefined;
+    let allowempty: boolean | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+
+        if (key === "delim") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("STRING")) {
+              delim = this.peek().value;
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        if (key === "allowempty") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              allowempty = this.peek().value === "true";
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        // Field name
+        field = this.peek().value;
+        this.advance();
+      }
+    }
+
+    return { type: "makemv", field, delim, allowempty };
+  }
+
+  private parseMvexpand(): Command {
+    this.advance(); // consume 'mvexpand'
+    let field = "";
+    let limit: number | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+
+        if (key === "limit") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("NUMBER")) {
+              limit = parseInt(this.peek().value);
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        // Field name
+        field = this.peek().value;
+        this.advance();
+      }
+    }
+
+    return { type: "mvexpand", field, limit };
+  }
+
+  private parseAddtotals(): Command {
+    this.advance(); // consume 'addtotals'
+    let row: boolean | undefined;
+    let col: boolean | undefined;
+    const fields: string[] = [];
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+
+        if (key === "row") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              row = this.peek().value === "true";
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        if (key === "col") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              col = this.peek().value === "true";
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        // Field names
+        fields.push(this.peek().value);
+        this.advance();
+      }
+
+      if (this.check("COMMA")) this.advance();
+    }
+
+    return { type: "addtotals", row, col, fields: fields.length > 0 ? fields : undefined };
+  }
+
+  private parseReverse(): Command {
+    this.advance(); // consume 'reverse'
+    return { type: "reverse" };
+  }
+
+  private parseUniq(): Command {
+    this.advance(); // consume 'uniq'
+    return { type: "uniq" };
+  }
+
+  private parseMakeresults(): Command {
+    this.advance(); // consume 'makeresults'
+    let count: number | undefined;
+    let annotate: boolean | undefined;
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const key = this.peek().value.toLowerCase();
+
+        if (key === "count") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("NUMBER")) {
+              count = parseInt(this.peek().value);
+              this.advance();
+            }
+          }
+          continue;
+        }
+
+        if (key === "annotate") {
+          this.advance();
+          if (this.check("EQUALS")) {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              annotate = this.peek().value === "true";
+              this.advance();
+            }
+          }
+          continue;
+        }
+      }
+      break;
+    }
+
+    return { type: "makeresults", count, annotate };
+  }
+
+  private parseConvert(): Command {
+    this.advance(); // consume 'convert'
+    type ConvertFunc = "auto" | "dur2sec" | "mstime" | "memk" | "none" | "num" | "rmcomma" | "rmunit" | "ctime" | "mktime";
+    const conversions: Array<{ function: ConvertFunc; field: string; alias?: string }> = [];
+    const validFuncs: ConvertFunc[] = ["auto", "dur2sec", "mstime", "memk", "none", "num", "rmcomma", "rmunit", "ctime", "mktime"];
+
+    while (!this.isAtEnd() && !this.check("PIPE")) {
+      if (this.check("IDENTIFIER")) {
+        const funcName = this.peek().value.toLowerCase() as ConvertFunc;
+
+        if (validFuncs.includes(funcName)) {
+          this.advance();
+          if (this.check("LPAREN")) {
+            this.advance();
+            if (this.check("IDENTIFIER")) {
+              const field = this.peek().value;
+              this.advance();
+              let alias: string | undefined;
+
+              if (this.check("RPAREN")) this.advance();
+
+              // Check for AS alias
+              if (this.check("OPERATOR") && this.peek().value === "AS") {
+                this.advance();
+                if (this.check("IDENTIFIER")) {
+                  alias = this.peek().value;
+                  this.advance();
+                }
+              }
+
+              conversions.push({ function: funcName, field, alias });
+            }
+          }
+        }
+      }
+
+      if (this.check("COMMA")) this.advance();
+      else if (!this.check("IDENTIFIER")) break;
+    }
+
+    return { type: "convert", conversions };
   }
 
   // Helper methods

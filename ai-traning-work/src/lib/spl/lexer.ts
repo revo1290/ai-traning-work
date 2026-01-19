@@ -73,6 +73,17 @@ export class SPLLexer {
       return this.readOperator();
     }
 
+    // Arithmetic operators
+    if (char === "+") {
+      return this.makeToken("PLUS", "+");
+    }
+    if (char === "/") {
+      return this.makeToken("SLASH", "/");
+    }
+    if (char === "%") {
+      return this.makeToken("PERCENT", "%");
+    }
+
     // String
     if (char === '"' || char === "'") {
       return this.readString();
@@ -83,9 +94,14 @@ export class SPLLexer {
       return this.readNumber();
     }
 
-    // Wildcard
+    // Minus operator (when not part of a number)
+    if (char === "-") {
+      return this.makeToken("MINUS", "-");
+    }
+
+    // Asterisk (multiplication or wildcard depending on context)
     if (char === "*") {
-      return this.makeToken("WILDCARD", "*");
+      return this.makeToken("ASTERISK", "*");
     }
 
     // Identifier or Keyword

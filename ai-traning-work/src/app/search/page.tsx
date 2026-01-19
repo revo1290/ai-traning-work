@@ -4,18 +4,36 @@ import { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import Link from "next/link";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { SPL_TEMPLATES, getCategories, getCategoryLabel, getDifficultyLabel, type SPLTemplate } from "@/lib/spl/templates";
+import { SPL_COMMANDS, getCommandHelp } from "@/lib/spl/help";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+
+// 時間範囲プリセット
+const TIME_RANGE_PRESETS = [
+  { label: "全期間", value: "all", ms: 0 },
+  { label: "過去15分", value: "15m", ms: 15 * 60 * 1000 },
+  { label: "過去1時間", value: "1h", ms: 60 * 60 * 1000 },
+  { label: "過去4時間", value: "4h", ms: 4 * 60 * 60 * 1000 },
+  { label: "過去24時間", value: "24h", ms: 24 * 60 * 60 * 1000 },
+  { label: "過去7日", value: "7d", ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: "過去30日", value: "30d", ms: 30 * 24 * 60 * 60 * 1000 },
+];
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
   const [activeTab, setActiveTab] = useState<"events" | "stats" | "visualization">("events");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [timeRange, setTimeRange] = useState("all");
+  const [selectedTemplateCategory, setSelectedTemplateCategory] = useState<SPLTemplate["category"] | "all">("all");
+  const [selectedHelpCategory, setSelectedHelpCategory] = useState<"search" | "stats" | "transform" | "join" | "utility" | "all">("all");
 
   const {
     isDataLoaded,
@@ -133,6 +151,40 @@ export default function SearchPage() {
 
       {/* Search Input */}
       <div className="bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] p-4">
+        {/* Time Range and Quick Actions */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-[var(--text-secondary)]">時間範囲:</label>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="px-3 py-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none"
+            >
+              {TIME_RANGE_PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowTemplateModal(true)}
+              className="px-3 py-1.5 text-sm bg-[var(--bg-tertiary)] text-[var(--text-primary)] rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1"
+            >
+              <span>📋</span> テンプレート
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="px-3 py-1.5 text-sm bg-[var(--bg-tertiary)] text-[var(--text-primary)] rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1"
+            >
+              <span>❓</span> ヘルプ
+            </button>
+          </div>
+        </div>
+
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -507,6 +559,175 @@ export default function SearchPage() {
               >
                 保存
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--bg-secondary)] rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                SPLテンプレート
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowTemplateModal(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setSelectedTemplateCategory("all")}
+                className={`px-3 py-1 text-sm rounded ${
+                  selectedTemplateCategory === "all"
+                    ? "bg-[var(--accent-primary)] text-[var(--bg-primary)]"
+                    : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                }`}
+              >
+                すべて
+              </button>
+              {getCategories().map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedTemplateCategory(cat)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    selectedTemplateCategory === cat
+                      ? "bg-[var(--accent-primary)] text-[var(--bg-primary)]"
+                      : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                  }`}
+                >
+                  {getCategoryLabel(cat)}
+                </button>
+              ))}
+            </div>
+
+            {/* Template List */}
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {SPL_TEMPLATES.filter(
+                (t) => selectedTemplateCategory === "all" || t.category === selectedTemplateCategory
+              ).map((template) => (
+                <div
+                  key={template.id}
+                  className="p-3 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded hover:border-[var(--accent-primary)] cursor-pointer transition-colors"
+                  onClick={() => {
+                    setQuery(template.query);
+                    setShowTemplateModal(false);
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {template.name}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      template.difficulty === "beginner"
+                        ? "bg-green-500/20 text-green-400"
+                        : template.difficulty === "intermediate"
+                        ? "bg-yellow-500/20 text-yellow-400"
+                        : "bg-red-500/20 text-red-400"
+                    }`}>
+                      {getDifficultyLabel(template.difficulty)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mb-2">
+                    {template.description}
+                  </p>
+                  <code className="block text-xs font-mono bg-[var(--bg-tertiary)] p-2 rounded text-[var(--text-muted)] overflow-x-auto">
+                    {template.query}
+                  </code>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--bg-secondary)] rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                SPLコマンドヘルプ
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {(["all", "search", "stats", "transform", "join", "utility"] as const).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedHelpCategory(cat)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    selectedHelpCategory === cat
+                      ? "bg-[var(--accent-primary)] text-[var(--bg-primary)]"
+                      : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                  }`}
+                >
+                  {cat === "all" ? "すべて" : cat === "search" ? "検索" : cat === "stats" ? "統計" : cat === "transform" ? "変換" : cat === "join" ? "結合" : "ユーティリティ"}
+                </button>
+              ))}
+            </div>
+
+            {/* Command List */}
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {Object.values(SPL_COMMANDS)
+                .filter((cmd) => selectedHelpCategory === "all" || cmd.category === selectedHelpCategory)
+                .map((cmd) => (
+                  <div
+                    key={cmd.name}
+                    className="p-3 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <code className="font-bold text-[var(--accent-primary)]">
+                        {cmd.name}
+                      </code>
+                      <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+                        {cmd.category}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[var(--text-secondary)] mb-2">
+                      {cmd.description}
+                    </p>
+                    <div className="text-xs mb-2">
+                      <span className="text-[var(--text-muted)]">構文: </span>
+                      <code className="font-mono text-[var(--text-primary)]">{cmd.syntax}</code>
+                    </div>
+                    <div className="text-xs">
+                      <span className="text-[var(--text-muted)]">例:</span>
+                      <div className="mt-1 space-y-1">
+                        {cmd.examples.slice(0, 3).map((ex, i) => (
+                          <code
+                            key={i}
+                            className="block font-mono bg-[var(--bg-tertiary)] px-2 py-1 rounded text-[var(--text-primary)] cursor-pointer hover:bg-[var(--bg-hover)]"
+                            onClick={() => {
+                              setQuery(ex);
+                              setShowHelpModal(false);
+                            }}
+                          >
+                            {ex}
+                          </code>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         </div>

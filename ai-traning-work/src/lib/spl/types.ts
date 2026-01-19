@@ -19,6 +19,11 @@ export type TokenType =
   | "OPERATOR"
   | "WILDCARD"
   | "DOT"
+  | "PLUS"
+  | "MINUS"
+  | "ASTERISK"
+  | "SLASH"
+  | "PERCENT"
   | "EOF";
 
 export interface Token {
