@@ -21,7 +21,7 @@ export default function LookupsPage() {
         setParseError("少なくとも1行のデータが必要です");
         return;
       }
-      const columns = [...new Set(rows.flatMap((r: Record<string, unknown>) => Object.keys(r)))] as string[];
+      const columns: string[] = [...new Set(rows.flatMap((r: Record<string, unknown>) => Object.keys(r)))];
       addLookupTable({
         name: newTableName.trim(),
         columns,
