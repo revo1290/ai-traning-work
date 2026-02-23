@@ -1,6 +1,7 @@
 # API設計書
 
 ## 概要
+
 本プロジェクトではNext.js App Routerの機能を活用し、以下の方式でAPIを実装する：
 
 - **Server Actions**: データの作成・更新・削除（mutation）
