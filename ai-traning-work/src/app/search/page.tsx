@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import Link from "next/link";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import SearchResultChart from "@/components/SearchResultChart";
 import { SPL_TEMPLATES, getCategories, getCategoryLabel, getDifficultyLabel, type SPLTemplate } from "@/lib/spl/templates";
 import { SPL_COMMANDS, getCommandHelp } from "@/lib/spl/help";
 
@@ -273,6 +274,17 @@ function SearchPageContent() {
               >
                 統計
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("visualization")}
+                className={`px-3 py-1 text-sm rounded ${
+                  activeTab === "visualization"
+                    ? "bg-[var(--accent-primary)] text-[var(--bg-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                }`}
+              >
+                可視化
+              </button>
             </div>
           </div>
 
@@ -288,7 +300,7 @@ function SearchPageContent() {
           )}
 
           {/* Results Table */}
-          {currentSearchResult.success && currentSearchResult.data.length > 0 && (
+          {currentSearchResult.success && activeTab === "events" && currentSearchResult.data.length > 0 && (
             <div>
               {/* Table Controls */}
               <div className="flex items-center justify-between p-3 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]">
@@ -408,8 +420,15 @@ function SearchPageContent() {
             </div>
           )}
 
+          {/* Visualization Tab Content */}
+          {currentSearchResult.success && activeTab === "visualization" && (
+            <div className="p-4">
+              <SearchResultChart result={currentSearchResult} />
+            </div>
+          )}
+
           {/* Empty State */}
-          {currentSearchResult.success && currentSearchResult.data.length === 0 && (
+          {currentSearchResult.success && (activeTab === "events" || activeTab === "stats" || activeTab === "visualization") && currentSearchResult.data.length === 0 && (
             <div className="p-8 text-center text-[var(--text-muted)]">
               検索結果がありません
             </div>
