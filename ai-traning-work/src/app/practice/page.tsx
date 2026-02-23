@@ -259,7 +259,7 @@ export default function PracticePage() {
     // Check if query matches expected pattern
     if (selectedProblem.expectedPattern && selectedProblem.expectedPattern.test(userQuery)) {
       updatePracticeProgress(selectedProblem.id, "completed", userQuery);
-      setFeedback({ success: true, message: "正解です！クエリが正しく作成されました。" });
+      setFeedback({ success: true, message: "正解です！クエリが正しく作成されました!!!" });
     } else {
       // Try to execute the query and check if it returns results
       const result = executeSearch(userQuery);
