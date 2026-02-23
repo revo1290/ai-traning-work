@@ -21,11 +21,11 @@ export default function LookupsPage() {
         setParseError("少なくとも1行のデータが必要です");
         return;
       }
-      const columns: string[] = [...new Set(rows.flatMap((r: Record<string, unknown>) => Object.keys(r)).map(String))];
+      const columns: string[] = [...new Set(rows.flatMap((r: Record<string, any>) => Object.keys(r) as string[]))];
       addLookupTable({
         name: newTableName.trim(),
         columns,
-        rows: rows as Record<string, unknown>[],
+        rows: rows as Record<string, any>[],
       });
       setShowCreateModal(false);
       setNewTableName("");
