@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import Link from "next/link";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
@@ -21,8 +22,17 @@ const TIME_RANGE_PRESETS = [
 ];
 
 export default function SearchPage() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
+
+  // URLパラメータから初期化
+  useEffect(() => {
+    const q = searchParams.get("q");
+    const t = searchParams.get("t");
+    if (q) setQuery(decodeURIComponent(q));
+    if (t && TIME_RANGE_PRESETS.some((p) => p.value === t)) setTimeRange(t);
+  }, [searchParams]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -54,13 +64,13 @@ export default function SearchPage() {
     // Use setTimeout to allow React to render the loading state before heavy computation
     setTimeout(() => {
       try {
-        const result = executeSearch(query);
+        const result = executeSearch(query, { timeRange });
         addSearchHistory(query, result.count);
       } finally {
         setIsExecuting(false);
       }
     }, 50);
-  }, [query, isDataLoaded, isExecuting, executeSearch, addSearchHistory]);
+  }, [query, timeRange, isDataLoaded, isExecuting, executeSearch, addSearchHistory]);
 
   // Pagination calculations
   const paginatedData = useMemo(() => {

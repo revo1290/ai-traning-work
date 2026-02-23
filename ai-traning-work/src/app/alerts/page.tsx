@@ -11,7 +11,9 @@ export default function AlertsPage() {
   const [newAlertCondition, setNewAlertCondition] = useState<Alert["condition"]>("gt");
   const [newAlertThreshold, setNewAlertThreshold] = useState(0);
 
-  const { alerts, alertHistory, createAlert, updateAlert, deleteAlert, isDataLoaded } = useAppStore();
+  const { alerts, alertHistory, createAlert, updateAlert, deleteAlert, isDataLoaded, runAlertTest } = useAppStore();
+  const [testingAlertId, setTestingAlertId] = useState<string | null>(null);
+  const [lastTestResult, setLastTestResult] = useState<{ alertId: string; triggered: boolean; value: number; message: string } | null>(null);
 
   const handleCreateAlert = () => {
     if (newAlertName.trim() && newAlertQuery.trim()) {
@@ -38,6 +40,19 @@ export default function AlertsPage() {
     if (confirm("このアラートを削除しますか？")) {
       deleteAlert(id);
     }
+  };
+
+  const handleTestAlert = (id: string) => {
+    setTestingAlertId(id);
+    setLastTestResult(null);
+    setTimeout(() => {
+      const result = runAlertTest(id, { timeRange: "all" });
+      setLastTestResult({
+        alertId: id,
+        ...(result ?? { triggered: false, value: 0, message: "アラートが見つかりません" }),
+      });
+      setTestingAlertId(null);
+    }, 100);
   };
 
   const conditionLabels: Record<Alert["condition"], string> = {
@@ -144,7 +159,15 @@ export default function AlertsPage() {
                         条件: 結果 {conditionLabels[alert.condition]} {alert.threshold}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                      <button
+                        type="button"
+                        onClick={() => handleTestAlert(alert.id)}
+                        disabled={!isDataLoaded || testingAlertId === alert.id}
+                        className="px-3 py-1 text-sm bg-[var(--accent-primary)] text-[var(--bg-primary)] rounded hover:opacity-90 disabled:opacity-50"
+                      >
+                        {testingAlertId === alert.id ? "実行中..." : "テスト実行"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleToggleAlert(alert.id, alert.enabled)}
@@ -159,6 +182,11 @@ export default function AlertsPage() {
                       >
                         削除
                       </button>
+                      {lastTestResult?.alertId === alert.id && (
+                        <span className={`text-xs ${lastTestResult.triggered ? "text-[var(--accent-danger)]" : "text-[var(--text-muted)]"}`}>
+                          {lastTestResult.message}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
