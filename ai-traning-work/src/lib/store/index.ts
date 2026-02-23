@@ -318,7 +318,7 @@ export const useAppStore = create<AppState>()(
         const cutoffTime = timeRangeMs > 0 ? Date.now() - timeRangeMs : 0;
 
         // ベースデータ構築（source/sourcetype/index追加）
-        let data = logs.map((log) => {
+        let data: Record<string, unknown>[] = logs.map((log) => {
           const source = sourceMap.get(log.sourceId);
           return {
             ...log.parsed,
@@ -349,7 +349,7 @@ export const useAppStore = create<AppState>()(
               const raw = String(record._raw ?? "");
               const match = raw.match(regex);
               if (!match?.groups) return record;
-              const next = { ...record };
+              const next: Record<string, unknown> = { ...record };
               for (const [name, value] of Object.entries(match.groups)) {
                 if (value !== undefined) {
                   if (rule.type === "number") next[name] = Number(value);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { Suspense, useState, useCallback, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import Link from "next/link";
@@ -21,7 +21,7 @@ const TIME_RANGE_PRESETS = [
   { label: "過去30日", value: "30d", ms: 30 * 24 * 60 * 60 * 1000 },
 ];
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
@@ -743,6 +743,14 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[200px] text-[var(--text-muted)]">読み込み中...</div>}>
+      <SearchPageContent />
+    </Suspense>
   );
 }
 
