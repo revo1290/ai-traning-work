@@ -12,15 +12,19 @@ export default function SettingsPage() {
     sources,
     dashboards,
     alerts,
+    alertHistory,
     searchHistory,
     savedSearches,
     practiceProgress,
+    theme,
+    setTheme,
     clearData,
+    clearAllData,
   } = useAppStore();
 
   const handleResetAll = () => {
     if (confirm("本当にすべてのデータを削除しますか？この操作は取り消せません。")) {
-      clearData();
+      clearAllData();
       window.location.reload();
     }
   };
@@ -80,7 +84,7 @@ export default function SettingsPage() {
           <StatItem label="検索履歴" value={searchHistory.length.toString()} />
           <StatItem
             label="練習問題完了"
-            value={`${practiceProgress.filter((p) => p.status === "completed").length}/8`}
+            value={`${practiceProgress.filter((p) => p.status === "completed").length}/18`}
           />
         </div>
       </div>
@@ -95,11 +99,13 @@ export default function SettingsPage() {
             <label className="block text-sm text-[var(--text-secondary)] mb-2">
               テーマ
             </label>
-            <select className="px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none">
+            <select
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as "light" | "dark")}
+              className="px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:outline-none"
+            >
               <option value="dark">ダーク（Splunk風）</option>
-              <option value="light" disabled>
-                ライト（準備中）
-              </option>
+              <option value="light">ライト</option>
             </select>
           </div>
           <div>

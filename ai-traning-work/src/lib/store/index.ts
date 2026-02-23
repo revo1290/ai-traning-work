@@ -74,6 +74,14 @@ export interface FieldExtraction {
   createdAt: Date;
 }
 
+export interface LookupTable {
+  id: string;
+  name: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  createdAt: Date;
+}
+
 export interface PracticeProgress {
   problemId: string;
   status: "not_started" | "in_progress" | "completed";
@@ -106,6 +114,9 @@ interface AppState {
   // フィールド
   fieldExtractions: FieldExtraction[];
 
+  // Lookupテーブル
+  lookupTables: LookupTable[];
+
   // 練習問題
   practiceProgress: PracticeProgress[];
 
@@ -118,7 +129,8 @@ interface AppState {
   loadSampleData: () => void;
   loadCustomData: (name: string, data: Record<string, unknown>[], format: string) => void;
   clearData: () => void;
-  executeSearch: (query: string) => ExecutionResult;
+  clearAllData: () => void;
+  executeSearch: (query: string, options?: { timeRange?: string }) => ExecutionResult;
   addSearchHistory: (query: string, resultCount: number) => void;
   saveSearch: (name: string, query: string, description?: string) => void;
   deleteSavedSearch: (id: string) => void;
@@ -136,16 +148,33 @@ interface AppState {
   updateAlert: (id: string, updates: Partial<Alert>) => void;
   deleteAlert: (id: string) => void;
   addAlertHistory: (alertId: string, alertName: string, message: string, value: number) => void;
+  runAlertTest: (alertId: string, options?: { timeRange?: string }) => { triggered: boolean; value: number; message: string } | null;
 
   // フィールド
   addFieldExtraction: (extraction: Omit<FieldExtraction, "id" | "createdAt">) => void;
   deleteFieldExtraction: (id: string) => void;
+
+  // Lookupテーブル
+  addLookupTable: (table: Omit<LookupTable, "id" | "createdAt">) => void;
+  deleteLookupTable: (id: string) => void;
 
   // 練習問題
   updatePracticeProgress: (problemId: string, status: PracticeProgress["status"], answer?: string) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
+
+// 時間範囲プリセット（ミリ秒）
+const TIME_RANGE_MS: Record<string, number> = {
+  all: 0,
+  custom: 0,
+  "15m": 15 * 60 * 1000,
+  "1h": 60 * 60 * 1000,
+  "4h": 4 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+};
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -163,6 +192,7 @@ export const useAppStore = create<AppState>()(
       alerts: [],
       alertHistory: [],
       fieldExtractions: [],
+      lookupTables: [],
       practiceProgress: [],
 
       // UI設定
@@ -185,11 +215,29 @@ export const useAppStore = create<AppState>()(
       // データ読み込み
       loadSampleData: () => {
         const { sources, logs } = generateAllSampleData();
-        set({
+        // サンプルLookupテーブル（host名とオーナー情報）
+        const hostOwnerLookup = {
+          name: "host_owners",
+          columns: ["host", "owner", "team"],
+          rows: [
+            { host: "webserver-01", owner: "ops-team", team: "インフラ" },
+            { host: "app-01", owner: "dev-team", team: "開発" },
+            { host: "app-02", owner: "dev-team", team: "開発" },
+            { host: "db-01", owner: "dba-team", team: "DB" },
+            { host: "k8s-node-1", owner: "k8s-team", team: "コンテナ" },
+          ],
+        };
+        set((state) => ({
           sources: sources.map((s) => ({ ...s, createdAt: new Date() })),
           logs,
           isDataLoaded: true,
-        });
+          lookupTables: state.lookupTables.some((lt) => lt.name === "host_owners")
+            ? state.lookupTables
+            : [
+                ...state.lookupTables,
+                { ...hostOwnerLookup, id: generateId(), createdAt: new Date() },
+              ],
+        }));
       },
 
       loadCustomData: (name: string, data: Record<string, unknown>[], format: string) => {
@@ -209,13 +257,24 @@ export const useAppStore = create<AppState>()(
             ? (levelStr as "info" | "warn" | "error" | "debug")
             : "info";
 
+          // タイムスタンプを取得（_time, timestamp, date などを優先）
+          const timeVal = item._time ?? item.timestamp ?? item.date ?? item["@timestamp"] ?? item.created_at;
+          const timestamp =
+            timeVal instanceof Date
+              ? timeVal
+              : typeof timeVal === "number"
+              ? new Date(timeVal < 1e12 ? timeVal * 1000 : timeVal)
+              : timeVal
+              ? new Date(String(timeVal))
+              : new Date();
+
           return {
             id: `${sourceId}-${index}`,
             sourceId,
-            timestamp: item._time instanceof Date ? item._time : new Date(item._time as string || Date.now()),
-            raw: JSON.stringify(item),
+            timestamp: isNaN(timestamp.getTime()) ? new Date() : timestamp,
+            raw: (item._raw as string) ?? JSON.stringify(item),
             level,
-            parsed: item,
+            parsed: { ...item, _time: timestamp, _raw: (item._raw as string) ?? JSON.stringify(item) },
           };
         });
 
@@ -234,18 +293,84 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      // 検索実行
-      executeSearch: (query: string) => {
-        const { logs } = get();
-        const data = logs.map((log) => ({
-          ...log.parsed,
-          _time: log.timestamp,
-          _raw: log.raw,
-          level: log.level,
-          sourceId: log.sourceId,
-        }));
+      clearAllData: () => {
+        set({
+          sources: [],
+          logs: [],
+          isDataLoaded: false,
+          searchHistory: [],
+          savedSearches: [],
+          currentSearchResult: null,
+          dashboards: [],
+          alerts: [],
+          alertHistory: [],
+          fieldExtractions: [],
+          lookupTables: [],
+          practiceProgress: [],
+        });
+      },
 
-        const executor = new SPLExecutor(data);
+      // 検索実行
+      executeSearch: (query: string, options?: { timeRange?: string }) => {
+        const { logs, sources, fieldExtractions, lookupTables } = get();
+        const sourceMap = new Map(sources.map((s) => [s.id, s]));
+        const timeRangeMs = options?.timeRange ? TIME_RANGE_MS[options.timeRange] ?? 0 : 0;
+        const cutoffTime = timeRangeMs > 0 ? Date.now() - timeRangeMs : 0;
+
+        // ベースデータ構築（source/sourcetype/index追加）
+        let data = logs.map((log) => {
+          const source = sourceMap.get(log.sourceId);
+          return {
+            ...log.parsed,
+            _time: log.timestamp,
+            _raw: log.raw,
+            level: log.level,
+            sourceId: log.sourceId,
+            source: source?.name ?? log.sourceId,
+            sourcetype: source?.format ?? "unknown",
+            index: "main",
+          };
+        });
+
+        // 時間範囲フィルタ
+        if (cutoffTime > 0) {
+          data = data.filter((r) => {
+            const t = r._time;
+            const ts = t instanceof Date ? t.getTime() : typeof t === "string" ? new Date(t).getTime() : Number(t);
+            return !isNaN(ts) && ts >= cutoffTime;
+          });
+        }
+
+        // フィールド抽出ルール適用
+        for (const rule of fieldExtractions) {
+          try {
+            const regex = new RegExp(rule.pattern);
+            data = data.map((record) => {
+              const raw = String(record._raw ?? "");
+              const match = raw.match(regex);
+              if (!match?.groups) return record;
+              const next = { ...record };
+              for (const [name, value] of Object.entries(match.groups)) {
+                if (value !== undefined) {
+                  if (rule.type === "number") next[name] = Number(value);
+                  else if (rule.type === "date") next[name] = new Date(value);
+                  else next[name] = value;
+                }
+              }
+              return next;
+            });
+          } catch {
+            // 無効な正規表現はスキップ
+          }
+        }
+
+        // LookupテーブルをMapに変換
+        const lookupMap = new Map<string, Record<string, unknown>[]>();
+        for (const lt of lookupTables) {
+          lookupMap.set(lt.name, lt.rows);
+        }
+
+        const executor = new SPLExecutor(data, lookupMap);
         const result = executor.execute(query);
 
         set({ currentSearchResult: result });
@@ -408,6 +533,35 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      runAlertTest: (alertId: string, options?: { timeRange?: string }) => {
+        const { alerts } = get();
+        const alert = alerts.find((a) => a.id === alertId);
+        if (!alert) return null;
+        const result = get().executeSearch(alert.query, options);
+        if (!result.success || !result.data.length) {
+          return { triggered: false, value: 0, message: "検索結果なし、またはエラー" };
+        }
+        const value = typeof result.data[0].count === "number" ? result.data[0].count : result.count;
+        const numValue = Number(value);
+        let triggered = false;
+        switch (alert.condition) {
+          case "gt": triggered = numValue > alert.threshold; break;
+          case "gte": triggered = numValue >= alert.threshold; break;
+          case "lt": triggered = numValue < alert.threshold; break;
+          case "lte": triggered = numValue <= alert.threshold; break;
+          case "eq": triggered = numValue === alert.threshold; break;
+          case "ne": triggered = numValue !== alert.threshold; break;
+        }
+        if (triggered) {
+          get().addAlertHistory(alertId, alert.name, `値 ${numValue} が閾値 ${alert.threshold} を満たしました`, numValue);
+        }
+        return {
+          triggered,
+          value: numValue,
+          message: triggered ? `アラート発火: 値 ${numValue}` : `条件未達: 値 ${numValue} (閾値 ${alert.condition} ${alert.threshold})`,
+        };
+      },
+
       // フィールド
       addFieldExtraction: (extraction: Omit<FieldExtraction, "id" | "createdAt">) => {
         set((state) => ({
@@ -425,6 +579,21 @@ export const useAppStore = create<AppState>()(
       deleteFieldExtraction: (id: string) => {
         set((state) => ({
           fieldExtractions: state.fieldExtractions.filter((f) => f.id !== id),
+        }));
+      },
+
+      addLookupTable: (table: Omit<LookupTable, "id" | "createdAt">) => {
+        set((state) => ({
+          lookupTables: [
+            ...state.lookupTables,
+            { ...table, id: generateId(), createdAt: new Date() },
+          ],
+        }));
+      },
+
+      deleteLookupTable: (id: string) => {
+        set((state) => ({
+          lookupTables: state.lookupTables.filter((lt) => lt.id !== id),
         }));
       },
 
@@ -479,6 +648,7 @@ export const useAppStore = create<AppState>()(
         alerts: state.alerts,
         alertHistory: state.alertHistory,
         fieldExtractions: state.fieldExtractions,
+        lookupTables: state.lookupTables,
         practiceProgress: state.practiceProgress,
       }),
     }

@@ -82,14 +82,47 @@ export default function DataPage() {
     return [parsed];
   }, []);
 
+  const tryParseTimestamp = useCallback((line: string): Date => {
+    const now = new Date();
+    // ISO 8601
+    const isoMatch = line.match(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/);
+    if (isoMatch) {
+      const d = new Date(isoMatch[0].replace(" ", "T"));
+      if (!isNaN(d.getTime())) return d;
+    }
+    // Apache/Nginx: [15/Jan/2024:10:30:00 +0900]
+    const apacheMatch = line.match(/\[(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})(?:\s+[+-]\d{4})?\]/);
+    if (apacheMatch) {
+      const months: Record<string, number> = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+      const [, day, mon, year, h, m, s] = apacheMatch;
+      const d = new Date(Number(year), months[mon] ?? 0, Number(day), Number(h), Number(m), Number(s));
+      if (!isNaN(d.getTime())) return d;
+    }
+    // 簡易日時: 2024-01-15 10:30:00 または 2024/01/15 10:30:00
+    const dateMatch = line.match(/(\d{4})[-\/](\d{2})[-\/](\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+    if (dateMatch) {
+      const [, y, mo, d, h, m, s] = dateMatch;
+      const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(m), Number(s));
+      if (!isNaN(date.getTime())) return date;
+    }
+    // Unix timestamp (秒 or ミリ秒)
+    const tsMatch = line.match(/\b(1[5-9]\d{8,12})\b/);
+    if (tsMatch) {
+      const ts = Number(tsMatch[1]);
+      const d = ts < 1e12 ? new Date(ts * 1000) : new Date(ts);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return now;
+  }, []);
+
   const parseLogLines = useCallback((text: string): Record<string, unknown>[] => {
     const lines = text.trim().split("\n").filter(line => line.trim());
     return lines.map((line, index) => ({
       _raw: line,
-      _time: new Date().toISOString(),
+      _time: tryParseTimestamp(line),
       lineNumber: index + 1,
     }));
-  }, []);
+  }, [tryParseTimestamp]);
 
   const processFile = useCallback(async (file: File) => {
     setIsLoading(true);

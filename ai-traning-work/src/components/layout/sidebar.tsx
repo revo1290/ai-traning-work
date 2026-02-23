@@ -10,6 +10,7 @@ const navItems = [
   { href: "/data", label: "データ取り込み", icon: DataIcon },
   { href: "/alerts", label: "アラート", icon: AlertIcon },
   { href: "/fields", label: "フィールド抽出", icon: FieldIcon },
+  { href: "/lookups", label: "Lookup", icon: LookupIcon },
   { href: "/practice", label: "練習問題", icon: PracticeIcon },
   { href: "/settings", label: "設定", icon: SettingsIcon },
 ];
@@ -186,6 +187,24 @@ function FieldIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+      />
+    </svg>
+  );
+}
+
+function LookupIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
       />
     </svg>
   );

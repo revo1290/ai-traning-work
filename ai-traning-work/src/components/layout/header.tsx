@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 
 const timeRangePresets = [
+  { value: "all", label: "全期間" },
   { value: "15m", label: "過去15分" },
   { value: "1h", label: "過去1時間" },
   { value: "4h", label: "過去4時間" },
@@ -18,7 +19,8 @@ export function Header() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [timeRange, setTimeRange] = useState("24h");
-  const { theme, toggleTheme, toggleSidebar } = useAppStore();
+  const { theme, toggleTheme, toggleSidebar, alertHistory } = useAppStore();
+  const hasUnreadAlerts = alertHistory.length > 0;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,14 +85,16 @@ export function Header() {
         </button>
 
         {/* Notifications */}
-        <button
-          type="button"
-          className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded transition-colors"
-          title="通知"
+        <Link
+          href="/alerts"
+          className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded transition-colors no-underline"
+          title={hasUnreadAlerts ? `${alertHistory.length} 件のアラート` : "通知"}
         >
           <BellIcon className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--accent-danger)] rounded-full" />
-        </button>
+          {hasUnreadAlerts && (
+            <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--accent-danger)] rounded-full" />
+          )}
+        </Link>
 
         {/* Help */}
         <Link
