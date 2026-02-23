@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "installCommand": "cd ai-traning-work && npm install",
+  "buildCommand": "cd ai-traning-work && npm run build"
+}
