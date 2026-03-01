@@ -6,6 +6,7 @@ import { useAppStore } from "@/lib/store";
 import Link from "next/link";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import SearchResultChart from "@/components/SearchResultChart";
+import SearchStatsPanel from "@/components/SearchStatsPanel";
 import { SPL_TEMPLATES, getCategories, getCategoryLabel, getDifficultyLabel, type SPLTemplate } from "@/lib/spl/templates";
 import { SPL_COMMANDS, getCommandHelp } from "@/lib/spl/help";
 
@@ -418,6 +419,11 @@ function SearchPageContent() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Stats Tab Content */}
+          {currentSearchResult.success && activeTab === "stats" && currentSearchResult.data.length > 0 && (
+            <SearchStatsPanel result={currentSearchResult} />
           )}
 
           {/* Visualization Tab Content */}
