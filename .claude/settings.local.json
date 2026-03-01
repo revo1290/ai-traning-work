@@ -56,7 +56,8 @@
       "WebSearch",
       "Bash(npx create-next-app@latest:*)",
       "Bash(npm run build:*)",
-      "WebFetch(domain:ai-traning-work.vercel.app)"
+      "WebFetch(domain:ai-traning-work.vercel.app)",
+      "mcp__github__list_issues"
     ]
   }
 }
