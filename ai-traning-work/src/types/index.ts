@@ -53,12 +53,25 @@ export interface SearchResult {
 // アラート条件
 export type AlertCondition = "gt" | "lt" | "eq" | "ne" | "gte" | "lte";
 
+// アラート重要度
+export type AlertSeverity = "info" | "low" | "medium" | "high" | "critical";
+
+// 通知
+export interface Notification {
+  id: string;
+  type: "info" | "success" | "warning" | "error";
+  title: string;
+  message: string;
+  timestamp: Date;
+  dismissed: boolean;
+}
+
 // 練習問題
 export interface Problem {
   id: string;
   title: string;
   description: string;
-  difficulty: "beginner" | "intermediate";
+  difficulty: "beginner" | "intermediate" | "advanced";
   category: string;
   expectedQuery?: string;
   hints: string[];

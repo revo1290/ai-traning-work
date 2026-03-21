@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { RawLog, generateAllSampleData } from "../data/sample-generator";
 import { SPLExecutor } from "../spl/executor";
 import { ExecutionResult } from "../spl/types";
+import type { AlertSeverity, Notification, PracticeProgress } from "@/types";
 
 export interface LogSource {
   id: string;
@@ -40,7 +41,7 @@ export interface Dashboard {
 export interface Panel {
   id: string;
   title: string;
-  type: "line" | "bar" | "pie" | "table" | "single";
+  type: "line" | "bar" | "pie" | "table" | "single" | "area" | "gauge";
   query: string;
   position: { x: number; y: number; w: number; h: number };
   config?: Record<string, unknown>;
@@ -53,6 +54,7 @@ export interface Alert {
   condition: "gt" | "lt" | "eq" | "ne" | "gte" | "lte";
   threshold: number;
   enabled: boolean;
+  severity: AlertSeverity;
   createdAt: Date;
 }
 
@@ -63,6 +65,7 @@ export interface AlertHistoryItem {
   triggeredAt: Date;
   message: string;
   value: number;
+  severity: AlertSeverity;
 }
 
 export interface FieldExtraction {
@@ -82,13 +85,6 @@ export interface LookupTable {
   createdAt: Date;
 }
 
-export interface PracticeProgress {
-  problemId: string;
-  status: "not_started" | "in_progress" | "completed";
-  lastAnswer?: string;
-  completedAt?: Date;
-}
-
 interface AppState {
   // UI設定
   theme: "light" | "dark";
@@ -103,13 +99,19 @@ interface AppState {
   searchHistory: SearchHistoryItem[];
   savedSearches: SavedSearch[];
   currentSearchResult: ExecutionResult | null;
+  selectedFields: string[];
+  customTimeRange: { from: string; to: string } | null;
 
   // ダッシュボード
   dashboards: Dashboard[];
+  dashboardEditMode: boolean;
 
   // アラート
   alerts: Alert[];
   alertHistory: AlertHistoryItem[];
+
+  // 通知
+  notifications: Notification[];
 
   // フィールド
   fieldExtractions: FieldExtraction[];
@@ -135,6 +137,13 @@ interface AppState {
   saveSearch: (name: string, query: string, description?: string) => void;
   deleteSavedSearch: (id: string) => void;
 
+  // フィールドサイドバー
+  setSelectedFields: (fields: string[]) => void;
+  toggleSelectedField: (field: string) => void;
+
+  // カスタム時間範囲
+  setCustomTimeRange: (range: { from: string; to: string } | null) => void;
+
   // ダッシュボード
   createDashboard: (name: string, description?: string) => string;
   updateDashboard: (id: string, updates: Partial<Dashboard>) => void;
@@ -142,13 +151,19 @@ interface AppState {
   addPanel: (dashboardId: string, panel: Omit<Panel, "id">) => void;
   updatePanel: (dashboardId: string, panelId: string, updates: Partial<Panel>) => void;
   deletePanel: (dashboardId: string, panelId: string) => void;
+  setDashboardEditMode: (mode: boolean) => void;
 
   // アラート
   createAlert: (alert: Omit<Alert, "id" | "createdAt">) => void;
   updateAlert: (id: string, updates: Partial<Alert>) => void;
   deleteAlert: (id: string) => void;
-  addAlertHistory: (alertId: string, alertName: string, message: string, value: number) => void;
+  addAlertHistory: (alertId: string, alertName: string, message: string, value: number, severity?: AlertSeverity) => void;
   runAlertTest: (alertId: string, options?: { timeRange?: string }) => { triggered: boolean; value: number; message: string } | null;
+
+  // 通知
+  addNotification: (notification: Omit<Notification, "id" | "timestamp" | "dismissed">) => void;
+  dismissNotification: (id: string) => void;
+  clearNotifications: () => void;
 
   // フィールド
   addFieldExtraction: (extraction: Omit<FieldExtraction, "id" | "createdAt">) => void;
@@ -188,9 +203,13 @@ export const useAppStore = create<AppState>()(
       searchHistory: [],
       savedSearches: [],
       currentSearchResult: null,
+      selectedFields: [],
+      customTimeRange: null,
       dashboards: [],
+      dashboardEditMode: false,
       alerts: [],
       alertHistory: [],
+      notifications: [],
       fieldExtractions: [],
       lookupTables: [],
       practiceProgress: [],
@@ -215,7 +234,6 @@ export const useAppStore = create<AppState>()(
       // データ読み込み
       loadSampleData: () => {
         const { sources, logs } = generateAllSampleData();
-        // サンプルLookupテーブル（host名とオーナー情報）
         const hostOwnerLookup = {
           name: "host_owners",
           columns: ["host", "owner", "team"],
@@ -257,7 +275,6 @@ export const useAppStore = create<AppState>()(
             ? (levelStr as "info" | "warn" | "error" | "debug")
             : "info";
 
-          // タイムスタンプを取得（_time, timestamp, date などを優先）
           const timeVal = item._time ?? item.timestamp ?? item.date ?? item["@timestamp"] ?? item.created_at;
           const timestamp =
             timeVal instanceof Date
@@ -301,9 +318,13 @@ export const useAppStore = create<AppState>()(
           searchHistory: [],
           savedSearches: [],
           currentSearchResult: null,
+          selectedFields: [],
+          customTimeRange: null,
           dashboards: [],
+          dashboardEditMode: false,
           alerts: [],
           alertHistory: [],
+          notifications: [],
           fieldExtractions: [],
           lookupTables: [],
           practiceProgress: [],
@@ -317,7 +338,6 @@ export const useAppStore = create<AppState>()(
         const timeRangeMs = options?.timeRange ? TIME_RANGE_MS[options.timeRange] ?? 0 : 0;
         const cutoffTime = timeRangeMs > 0 ? Date.now() - timeRangeMs : 0;
 
-        // ベースデータ構築（source/sourcetype/index追加）
         let data: Record<string, unknown>[] = logs.map((log) => {
           const source = sourceMap.get(log.sourceId);
           return {
@@ -332,7 +352,6 @@ export const useAppStore = create<AppState>()(
           };
         });
 
-        // 時間範囲フィルタ
         if (cutoffTime > 0) {
           data = data.filter((r) => {
             const t = r._time;
@@ -341,7 +360,6 @@ export const useAppStore = create<AppState>()(
           });
         }
 
-        // フィールド抽出ルール適用
         for (const rule of fieldExtractions) {
           try {
             const regex = new RegExp(rule.pattern);
@@ -364,7 +382,6 @@ export const useAppStore = create<AppState>()(
           }
         }
 
-        // LookupテーブルをMapに変換
         const lookupMap = new Map<string, Record<string, unknown>[]>();
         for (const lt of lookupTables) {
           lookupMap.set(lt.name, lt.rows);
@@ -410,6 +427,24 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           savedSearches: state.savedSearches.filter((s) => s.id !== id),
         }));
+      },
+
+      // フィールドサイドバー
+      setSelectedFields: (fields: string[]) => {
+        set({ selectedFields: fields });
+      },
+
+      toggleSelectedField: (field: string) => {
+        set((state) => ({
+          selectedFields: state.selectedFields.includes(field)
+            ? state.selectedFields.filter((f) => f !== field)
+            : [...state.selectedFields, field],
+        }));
+      },
+
+      // カスタム時間範囲
+      setCustomTimeRange: (range) => {
+        set({ customTimeRange: range });
       },
 
       // ダッシュボード
@@ -489,6 +524,10 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      setDashboardEditMode: (mode: boolean) => {
+        set({ dashboardEditMode: mode });
+      },
+
       // アラート
       createAlert: (alert: Omit<Alert, "id" | "createdAt">) => {
         set((state) => ({
@@ -517,7 +556,7 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      addAlertHistory: (alertId: string, alertName: string, message: string, value: number) => {
+      addAlertHistory: (alertId: string, alertName: string, message: string, value: number, severity: AlertSeverity = "medium") => {
         set((state) => ({
           alertHistory: [
             {
@@ -527,6 +566,7 @@ export const useAppStore = create<AppState>()(
               triggeredAt: new Date(),
               message,
               value,
+              severity,
             },
             ...state.alertHistory,
           ],
@@ -553,13 +593,45 @@ export const useAppStore = create<AppState>()(
           case "ne": triggered = numValue !== alert.threshold; break;
         }
         if (triggered) {
-          get().addAlertHistory(alertId, alert.name, `値 ${numValue} が閾値 ${alert.threshold} を満たしました`, numValue);
+          get().addAlertHistory(alertId, alert.name, `値 ${numValue} が閾値 ${alert.threshold} を満たしました`, numValue, alert.severity);
+          get().addNotification({
+            type: alert.severity === "critical" || alert.severity === "high" ? "error" : alert.severity === "medium" ? "warning" : "info",
+            title: `アラート: ${alert.name}`,
+            message: `値 ${numValue} が閾値 ${alert.threshold} を満たしました`,
+          });
         }
         return {
           triggered,
           value: numValue,
           message: triggered ? `アラート発火: 値 ${numValue}` : `条件未達: 値 ${numValue} (閾値 ${alert.condition} ${alert.threshold})`,
         };
+      },
+
+      // 通知
+      addNotification: (notification) => {
+        set((state) => ({
+          notifications: [
+            {
+              ...notification,
+              id: generateId(),
+              timestamp: new Date(),
+              dismissed: false,
+            },
+            ...state.notifications,
+          ].slice(0, 50),
+        }));
+      },
+
+      dismissNotification: (id: string) => {
+        set((state) => ({
+          notifications: state.notifications.map((n) =>
+            n.id === id ? { ...n, dismissed: true } : n
+          ),
+        }));
+      },
+
+      clearNotifications: () => {
+        set({ notifications: [] });
       },
 
       // フィールド
@@ -644,6 +716,7 @@ export const useAppStore = create<AppState>()(
         isDataLoaded: state.isDataLoaded,
         searchHistory: state.searchHistory,
         savedSearches: state.savedSearches,
+        selectedFields: state.selectedFields,
         dashboards: state.dashboards,
         alerts: state.alerts,
         alertHistory: state.alertHistory,
