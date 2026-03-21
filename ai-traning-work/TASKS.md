@@ -2,7 +2,7 @@
 
 ## 進捗サマリー
 - 開始日: 2026-01-08
-- 最終更新: 2026-01-09
+- 最終更新: 2026-03-21
 - ステータス: 継続開発中
 
 ## タスク一覧
@@ -59,7 +59,7 @@
 - [x] よく使うパターンリファレンス
 
 ### 9. 練習問題
-- [x] 練習問題データ定義 (8問: 初級4問、中級4問)
+- [x] 練習問題データ定義 (18問: 初級6問、中級6問、上級6問)
 - [x] 練習問題UI実装
 - [x] 進捗管理
 - [x] ヒント・回答表示機能
@@ -84,6 +84,20 @@
 ### 13. デプロイ
 - [x] Git コミット・プッシュ
 - [x] Vercel デプロイ
+
+### 14. UI・コンポーネント改善 (2026-03-21)
+- [x] 検索ページをコンポーネント分割 (SearchBar, TimeRangePicker, FieldSidebar, EventRow, EventTimeline, PatternsTab, JobInspector, SPLAutocomplete)
+- [x] アラートページをコンポーネント分割 (AlertToast)
+- [x] レイアウトコンポーネント改善 (Header, Sidebar, StatusBar)
+- [x] CSS変数・テーマシステム大幅拡充 (globals.css)
+- [x] フィールド解析ユーティリティ追加 (field-analysis.ts)
+- [x] シンタックスハイライトユーティリティ追加 (highlight.ts)
+
+### 15. バグ修正 (2026-03-21)
+- [x] PracticeProgress型の重複定義を解消 (store/index.ts → @/types からimport)
+- [x] Problem.difficulty型に "advanced" を追加 (types/index.ts)
+- [x] アラート削除のconfirm()をカスタムダイアログに置き換え (alerts/page.tsx)
+- [x] localStorage容量問題修正: logs/sourcesをpersist対象から除外
 
 ## 公開URL
 - **本番環境**: https://ai-traning-work.vercel.app

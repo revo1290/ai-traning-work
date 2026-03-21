@@ -711,9 +711,8 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,
-        sources: state.sources,
-        logs: state.logs,
-        isDataLoaded: state.isDataLoaded,
+        // logs/sources はlocalStorage容量制限（~5MB）を超えるため永続化しない。
+        // ページリロード後はデータ取り込みページから再読み込みが必要。
         searchHistory: state.searchHistory,
         savedSearches: state.savedSearches,
         selectedFields: state.selectedFields,
